@@ -1,0 +1,19 @@
+<?xml version = '1.0' encoding = 'UTF-8'?>
+<Relation class="oracle.dbtools.crest.model.design.logical.Relation" name="books" directorySegmentName="seg_0" id="BF260C04-2165-0EC0-6A4A-F94EAF5B9EAC">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:52:18 UTC</createdTime>
+<ownerDesignName>erd</ownerDesignName>
+<engineerTo>
+<item key="349885D2-4B38-9584-62BA-F42B2F85AD14" value="true"/>
+</engineerTo>
+<sourcePk>B06E3EA9-0E3F-803D-3170-AC5017B2A0BD</sourcePk>
+<identifying>false</identifying>
+<optionalSource>true</optionalSource>
+<optionalTarget>false</optionalTarget>
+<sourceCardinality>1</sourceCardinality>
+<sourceEntity>B7216624-6AAD-A556-9DAC-66FAD1E30EFE</sourceEntity>
+<targetCardinalityString>*</targetCardinalityString>
+<targetEntity>99A6378C-80ED-24E6-EEC0-11844F6CAC21</targetEntity>
+<transferable>true</transferable>
+<deleteRule>NO ACTION</deleteRule>
+</Relation>

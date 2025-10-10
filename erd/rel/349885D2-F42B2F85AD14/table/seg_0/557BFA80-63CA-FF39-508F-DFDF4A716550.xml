@@ -1,0 +1,98 @@
+<?xml version = '1.0' encoding = 'UTF-8'?>
+<Table class="oracle.dbtools.crest.model.design.relational.Table" directorySegmentName="seg_0" id="557BFA80-63CA-FF39-508F-DFDF4A716550" name="User">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:59:40 UTC</createdTime>
+<generatorID>B7216624-6AAD-A556-9DAC-66FAD1E30EFE</generatorID>
+<ownerDesignName>erd</ownerDesignName>
+<allowColumnReorder>false</allowColumnReorder>
+<existDependencyGenerateInDDl>true</existDependencyGenerateInDDl>
+<parsed>true</parsed>
+<columns itemClass="oracle.dbtools.crest.model.design.relational.Column">
+<Column name="user_id" id="24AB0EF1-EBA3-B079-176E-C7B178DF647E">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:59:40 UTC</createdTime>
+<generatorID>36B43DEB-913A-78B8-962D-E26D77AC0CFE</generatorID>
+<ownerDesignName>erd</ownerDesignName>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT019</logicalDatatype>
+<dataTypePrecision>9</dataTypePrecision>
+<ownDataTypeParameters>,9,</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
+</Column>
+<Column name="name" id="03439096-FC97-8D99-84B2-29CCB0DD5EE4">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:59:40 UTC</createdTime>
+<generatorID>EB826577-55DF-051A-61B9-B959C02F6117</generatorID>
+<ownerDesignName>erd</ownerDesignName>
+<nullsAllowed>true</nullsAllowed>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT024</logicalDatatype>
+<dataTypeSize>50</dataTypeSize>
+<ownDataTypeParameters>50,,</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
+</Column>
+<Column name="email" id="5F3DBA4E-62CC-ADE3-4A28-7C9FBE844A47">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:59:40 UTC</createdTime>
+<generatorID>5EF28FB5-D415-1C5A-4A86-B0089A04C5F3</generatorID>
+<ownerDesignName>erd</ownerDesignName>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT024</logicalDatatype>
+<dataTypeSize>50</dataTypeSize>
+<ownDataTypeParameters>50,,</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
+</Column>
+<Column name="phone" id="F9203D0F-9493-4767-F0D1-78927173584C">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:59:40 UTC</createdTime>
+<generatorID>8908FAD2-1C59-AB06-3F63-A6484E981969</generatorID>
+<ownerDesignName>erd</ownerDesignName>
+<nullsAllowed>true</nullsAllowed>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT024</logicalDatatype>
+<dataTypeSize>20</dataTypeSize>
+<ownDataTypeParameters>20,,</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
+</Column>
+<Column name="type" id="1737FAAC-209B-DC3E-09EF-3841822D6B1A">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:59:40 UTC</createdTime>
+<generatorID>AE20A37B-439B-1518-42D3-6D00BD05637C</generatorID>
+<ownerDesignName>erd</ownerDesignName>
+<nullsAllowed>true</nullsAllowed>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT024</logicalDatatype>
+<dataTypeSize>10</dataTypeSize>
+<ownDataTypeParameters>10,,</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
+</Column>
+</columns>
+<indexes itemClass="oracle.dbtools.crest.model.design.relational.Index">
+<ind_PK_UK id="645BEF10-E0AC-8DEB-E6C0-6A7798D8849F" name="User_PK">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:59:40 UTC</createdTime>
+<generatorID>B06E3EA9-0E3F-803D-3170-AC5017B2A0BD</generatorID>
+<ownerDesignName>erd</ownerDesignName>
+<pk>true</pk>
+<indexState>Primary Constraint</indexState>
+<isSurrogateKey>false</isSurrogateKey>
+<indexColumnUsage>
+<colUsage columnID="24AB0EF1-EBA3-B079-176E-C7B178DF647E"/>
+</indexColumnUsage>
+</ind_PK_UK>
+</indexes>
+<tableCheckConstraints itemClass="oracle.dbtools.crest.model.design.constraint.TableLevelConstraint">
+<tableCheckConstraint name="chk_user_type" directorySegmentName="seg_0" id="6FFDCD24-AA15-F8C1-07AA-1DE5762B2138">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 17:45:06 UTC</createdTime>
+<ownerDesignName>erd</ownerDesignName>
+<rule><![CDATA[type IN ('Driver','Rider')
+]]></rule>
+</tableCheckConstraint>
+</tableCheckConstraints>
+</Table>

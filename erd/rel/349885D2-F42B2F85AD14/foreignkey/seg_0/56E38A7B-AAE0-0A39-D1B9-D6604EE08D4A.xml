@@ -1,0 +1,17 @@
+<?xml version = '1.0' encoding = 'UTF-8'?>
+<FKIndexAssociation class="oracle.dbtools.crest.model.design.relational.FKIndexAssociation" directorySegmentName="seg_0" id="56E38A7B-AAE0-0A39-D1B9-D6604EE08D4A" containerWithKeyObject="DE5C703F-1CD7-3506-D887-EF332D66707A" localFKIndex="32592A01-A06B-0E73-A493-044BF193AE3D" name="Payment_Ride_FK">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:59:40 UTC</createdTime>
+<generatorID>A73E41C1-9B46-95C2-0BFC-F1ABF0FF635E</generatorID>
+<ownerDesignName>erd</ownerDesignName>
+<referredTableLongName>Ride</referredTableLongName>
+<deleteRule>NO ACTION</deleteRule>
+<referredTableID>ABF8FF2C-7866-1DF9-2B90-E69EF3B9D752</referredTableID>
+<keyObject>10427BBC-93AF-4F33-3283-892C1C1763E6</keyObject>
+<referredKeyID>10427BBC-93AF-4F33-3283-892C1C1763E6</referredKeyID>
+<mandatory>true</mandatory>
+<refColNames>ride_id</refColNames>
+<transferable>true</transferable>
+<rely>false</rely>
+<columnDependencyConstraintGenerateInDDL>true</columnDependencyConstraintGenerateInDDL>
+</FKIndexAssociation>

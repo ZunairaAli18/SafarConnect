@@ -1,0 +1,19 @@
+<?xml version = '1.0' encoding = 'UTF-8'?>
+<Relation class="oracle.dbtools.crest.model.design.logical.Relation" name="owns" directorySegmentName="seg_0" id="5771FD59-36EF-3D73-67EB-C181FB6B018C">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:52:33 UTC</createdTime>
+<ownerDesignName>erd</ownerDesignName>
+<engineerTo>
+<item key="349885D2-4B38-9584-62BA-F42B2F85AD14" value="true"/>
+</engineerTo>
+<sourcePk>0B96607C-7789-89FC-C611-29982DFBE65C</sourcePk>
+<identifying>false</identifying>
+<optionalSource>true</optionalSource>
+<optionalTarget>false</optionalTarget>
+<sourceCardinality>1</sourceCardinality>
+<sourceEntity>118F370D-F09C-012A-7A95-D82F6C0A9FD1</sourceEntity>
+<targetCardinalityString>1</targetCardinalityString>
+<targetEntity>5D723E75-F0D3-264E-C962-017F6AFFE6AA</targetEntity>
+<transferable>true</transferable>
+<deleteRule>NO ACTION</deleteRule>
+</Relation>

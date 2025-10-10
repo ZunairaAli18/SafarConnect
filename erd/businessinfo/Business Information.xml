@@ -1,0 +1,7 @@
+<?xml version = '1.0' encoding = 'UTF-8'?>
+<BusinessInfoDesign class="oracle.dbtools.crest.model.businessinfo.BusinessInfoDesign" name="Business Information" id="519AA7E6-8CF5-4C05-1046-3D6431D2F8AD">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:04:48 UTC</createdTime>
+<ownerDesignName>erd</ownerDesignName>
+<shouldBeOpen>false</shouldBeOpen>
+</BusinessInfoDesign>

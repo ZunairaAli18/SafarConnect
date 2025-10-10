@@ -1,0 +1,102 @@
+<?xml version = '1.0' encoding = 'UTF-8'?>
+<Entity class="oracle.dbtools.crest.model.design.logical.Entity" directorySegmentName="seg_0" id="B7216624-6AAD-A556-9DAC-66FAD1E30EFE" name="User">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:26:50 UTC</createdTime>
+<ownerDesignName>erd</ownerDesignName>
+<engineerTo>
+<item key="349885D2-4B38-9584-62BA-F42B2F85AD14" value="true"/>
+</engineerTo>
+<adequatelyNormalized>NO</adequatelyNormalized>
+<expectedVolumes>0</expectedVolumes>
+<fwdEngineeringStrategyName>Single Table</fwdEngineeringStrategyName>
+<growthPercent>0</growthPercent>
+<growthType>Year</growthType>
+<maxVolumes>9999999</maxVolumes>
+<minVolumes>0</minVolumes>
+<normalForm>Third</normalForm>
+<attributes itemClass="oracle.dbtools.crest.model.design.logical.Attribute">
+<Attribute name="user_id" id="36B43DEB-913A-78B8-962D-E26D77AC0CFE">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:27:05 UTC</createdTime>
+<ownerDesignName>erd</ownerDesignName>
+<engineerTo>
+<item key="349885D2-4B38-9584-62BA-F42B2F85AD14" value="true"/>
+</engineerTo>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT019</logicalDatatype>
+<dataTypePrecision>9</dataTypePrecision>
+<ownDataTypeParameters>,9,</ownDataTypeParameters>
+</Attribute>
+<Attribute name="name" id="EB826577-55DF-051A-61B9-B959C02F6117">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:28:36 UTC</createdTime>
+<ownerDesignName>erd</ownerDesignName>
+<engineerTo>
+<item key="349885D2-4B38-9584-62BA-F42B2F85AD14" value="true"/>
+</engineerTo>
+<nullsAllowed>true</nullsAllowed>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT024</logicalDatatype>
+<dataTypeSize>50</dataTypeSize>
+<ownDataTypeParameters>50,,</ownDataTypeParameters>
+</Attribute>
+<Attribute name="email" id="5EF28FB5-D415-1C5A-4A86-B0089A04C5F3">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:29:01 UTC</createdTime>
+<ownerDesignName>erd</ownerDesignName>
+<engineerTo>
+<item key="349885D2-4B38-9584-62BA-F42B2F85AD14" value="true"/>
+</engineerTo>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT024</logicalDatatype>
+<dataTypeSize>50</dataTypeSize>
+<ownDataTypeParameters>50,,</ownDataTypeParameters>
+</Attribute>
+<Attribute name="phone" id="8908FAD2-1C59-AB06-3F63-A6484E981969">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:29:41 UTC</createdTime>
+<ownerDesignName>erd</ownerDesignName>
+<engineerTo>
+<item key="349885D2-4B38-9584-62BA-F42B2F85AD14" value="true"/>
+</engineerTo>
+<nullsAllowed>true</nullsAllowed>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT024</logicalDatatype>
+<dataTypeSize>20</dataTypeSize>
+<ownDataTypeParameters>20,,</ownDataTypeParameters>
+</Attribute>
+<Attribute name="type" id="AE20A37B-439B-1518-42D3-6D00BD05637C">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:30:08 UTC</createdTime>
+<ownerDesignName>erd</ownerDesignName>
+<engineerTo>
+<item key="349885D2-4B38-9584-62BA-F42B2F85AD14" value="true"/>
+</engineerTo>
+<nullsAllowed>true</nullsAllowed>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT024</logicalDatatype>
+<dataTypeSize>10</dataTypeSize>
+<ownDataTypeParameters>10,,</ownDataTypeParameters>
+</Attribute>
+</attributes>
+<identifiers itemClass="oracle.dbtools.crest.model.design.logical.CandidateKey">
+<identifier id="B06E3EA9-0E3F-803D-3170-AC5017B2A0BD" name="User PK">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:27:34 UTC</createdTime>
+<ownerDesignName>erd</ownerDesignName>
+<shouldEngineer>false</shouldEngineer>
+<engineerTo>
+<item key="349885D2-4B38-9584-62BA-F42B2F85AD14" value="false"/>
+</engineerTo>
+<pk>true</pk>
+<usedAttributes>
+<attributeRef>36B43DEB-913A-78B8-962D-E26D77AC0CFE</attributeRef>
+</usedAttributes>
+</identifier>
+</identifiers>
+</Entity>

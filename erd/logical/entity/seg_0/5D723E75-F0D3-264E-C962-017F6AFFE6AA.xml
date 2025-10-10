@@ -1,0 +1,90 @@
+<?xml version = '1.0' encoding = 'UTF-8'?>
+<Entity class="oracle.dbtools.crest.model.design.logical.Entity" directorySegmentName="seg_0" id="5D723E75-F0D3-264E-C962-017F6AFFE6AA" name="Vehicle">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:36:53 UTC</createdTime>
+<ownerDesignName>erd</ownerDesignName>
+<engineerTo>
+<item key="349885D2-4B38-9584-62BA-F42B2F85AD14" value="true"/>
+</engineerTo>
+<adequatelyNormalized>NO</adequatelyNormalized>
+<expectedVolumes>0</expectedVolumes>
+<fwdEngineeringStrategyName>Single Table</fwdEngineeringStrategyName>
+<growthPercent>0</growthPercent>
+<growthType>Year</growthType>
+<maxVolumes>9999999</maxVolumes>
+<minVolumes>0</minVolumes>
+<normalForm>Third</normalForm>
+<attributes itemClass="oracle.dbtools.crest.model.design.logical.Attribute">
+<Attribute name="vehicle_id" id="BA2D7669-0510-8CE3-E6DB-44FEA851F916">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:36:59 UTC</createdTime>
+<ownerDesignName>erd</ownerDesignName>
+<engineerTo>
+<item key="349885D2-4B38-9584-62BA-F42B2F85AD14" value="true"/>
+</engineerTo>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT019</logicalDatatype>
+<dataTypePrecision>9</dataTypePrecision>
+<ownDataTypeParameters>,9,</ownDataTypeParameters>
+</Attribute>
+<Attribute name="vehicle_no" id="AB817564-44AD-9502-328B-F5C92A280797">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:37:22 UTC</createdTime>
+<ownerDesignName>erd</ownerDesignName>
+<engineerTo>
+<item key="349885D2-4B38-9584-62BA-F42B2F85AD14" value="true"/>
+</engineerTo>
+<nullsAllowed>true</nullsAllowed>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT024</logicalDatatype>
+<dataTypeSize>10</dataTypeSize>
+<ownDataTypeParameters>10,,</ownDataTypeParameters>
+</Attribute>
+<Attribute name="type" id="C45CD09D-4600-E06D-F2AC-22B8AAA14136">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:37:37 UTC</createdTime>
+<ownerDesignName>erd</ownerDesignName>
+<engineerTo>
+<item key="349885D2-4B38-9584-62BA-F42B2F85AD14" value="true"/>
+</engineerTo>
+<nullsAllowed>true</nullsAllowed>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT024</logicalDatatype>
+<dataTypeSize>20</dataTypeSize>
+<ownDataTypeParameters>20,,</ownDataTypeParameters>
+</Attribute>
+<Attribute name="driver_id" id="FF074FF5-EB71-F543-7159-9C86F320E94F">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:52:33 UTC</createdTime>
+<generatorID>5771FD59-36EF-3D73-67EB-C181FB6B018C</generatorID>
+<ownerDesignName>erd</ownerDesignName>
+<engineerTo>
+<item key="349885D2-4B38-9584-62BA-F42B2F85AD14" value="true"/>
+</engineerTo>
+<referedAttribute>68310FCA-0972-7985-B24B-8BBB98897999</referedAttribute>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT019</logicalDatatype>
+<dataTypePrecision>9</dataTypePrecision>
+<ownDataTypeParameters>,,</ownDataTypeParameters>
+</Attribute>
+</attributes>
+<identifiers itemClass="oracle.dbtools.crest.model.design.logical.CandidateKey">
+<identifier id="E1F779C9-B785-2F8C-AA3A-357CF8855F6C" name="Vehicle PK">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:37:20 UTC</createdTime>
+<ownerDesignName>erd</ownerDesignName>
+<shouldEngineer>false</shouldEngineer>
+<engineerTo>
+<item key="349885D2-4B38-9584-62BA-F42B2F85AD14" value="false"/>
+</engineerTo>
+<pk>true</pk>
+<usedAttributes>
+<attributeRef>BA2D7669-0510-8CE3-E6DB-44FEA851F916</attributeRef>
+</usedAttributes>
+</identifier>
+</identifiers>
+</Entity>

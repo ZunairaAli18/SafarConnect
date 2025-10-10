@@ -1,0 +1,103 @@
+<?xml version = '1.0' encoding = 'UTF-8'?>
+<Table class="oracle.dbtools.crest.model.design.relational.Table" directorySegmentName="seg_0" id="112A5015-FEF4-7B56-2363-2BE2064BE14F" name="Rating">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:59:40 UTC</createdTime>
+<generatorID>5FD5D664-8FE1-26D1-7E66-5D9E00215CE3</generatorID>
+<ownerDesignName>erd</ownerDesignName>
+<allowColumnReorder>false</allowColumnReorder>
+<existDependencyGenerateInDDl>true</existDependencyGenerateInDDl>
+<parsed>true</parsed>
+<columns itemClass="oracle.dbtools.crest.model.design.relational.Column">
+<Column name="rating_id" id="1FB925A3-EF59-4B22-B21A-7B168F64B1B7">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:59:40 UTC</createdTime>
+<generatorID>5E47AF2D-BC5C-BE18-335D-C71147BDAAA2</generatorID>
+<ownerDesignName>erd</ownerDesignName>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT019</logicalDatatype>
+<dataTypePrecision>9</dataTypePrecision>
+<ownDataTypeParameters>,9,</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
+</Column>
+<Column name="score" id="2A8B7CAC-50EE-0D5A-A9A8-24CFAB7BC53D">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:59:40 UTC</createdTime>
+<generatorID>37E114E6-8AEE-36F6-3A48-B1B10446E309</generatorID>
+<ownerDesignName>erd</ownerDesignName>
+<nullsAllowed>true</nullsAllowed>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT021</logicalDatatype>
+<dataTypePrecision>5</dataTypePrecision>
+<dataTypeScale>1</dataTypeScale>
+<ownDataTypeParameters>,5,1</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
+</Column>
+<Column name="comment" id="233B32A1-2512-00FC-48BA-AA8749B7ACF7">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:59:40 UTC</createdTime>
+<generatorID>3D9BC00D-755F-3654-B651-B51B269BCF77</generatorID>
+<ownerDesignName>erd</ownerDesignName>
+<nullsAllowed>true</nullsAllowed>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT024</logicalDatatype>
+<dataTypeSize>100</dataTypeSize>
+<ownDataTypeParameters>100,,</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
+</Column>
+<Column name="Ride_ride_id" id="D88DD75B-513A-EB61-BE9B-C5160092CD80">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:59:40 UTC</createdTime>
+<generatorID>86B2E89F-926C-6A1C-47DB-24E85FBCB71E</generatorID>
+<ownerDesignName>erd</ownerDesignName>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT019</logicalDatatype>
+<dataTypePrecision>9</dataTypePrecision>
+<ownDataTypeParameters>,,</ownDataTypeParameters>
+<previousColumn>false</previousColumn>
+<autoIncrementCycle>false</autoIncrementCycle>
+<associations>
+<colAssociation fkAssociation="A4FE0589-F63A-AC46-5990-A15A9D03CD95" referredColumn="8A2F2181-9AF3-2448-E557-29B94503B204"/>
+</associations>
+</Column>
+</columns>
+<indexes itemClass="oracle.dbtools.crest.model.design.relational.Index">
+<ind_PK_UK id="66681C99-C480-6C1A-FC74-E8BFF4C5E57A" name="Rating_PK">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:59:40 UTC</createdTime>
+<generatorID>D71B5A31-2F9B-3A45-C63B-CB93038C1248</generatorID>
+<ownerDesignName>erd</ownerDesignName>
+<pk>true</pk>
+<indexState>Primary Constraint</indexState>
+<isSurrogateKey>false</isSurrogateKey>
+<indexColumnUsage>
+<colUsage columnID="1FB925A3-EF59-4B22-B21A-7B168F64B1B7"/>
+</indexColumnUsage>
+</ind_PK_UK>
+<ind_PK_UK id="3944708A-C1A8-BF14-C0D6-4CC98FDA3FDA" name="Rating__IDX">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:59:40 UTC</createdTime>
+<ownerDesignName>erd</ownerDesignName>
+<indexState>Unique Plain Index</indexState>
+<isSurrogateKey>false</isSurrogateKey>
+<relationGeneratorID>22FFE58A-E7E9-FD9A-6339-BE03BE5ED38F</relationGeneratorID>
+<indexColumnUsage>
+<colUsage columnID="D88DD75B-513A-EB61-BE9B-C5160092CD80"/>
+</indexColumnUsage>
+</ind_PK_UK>
+<ind_PK_UK id="E8C5D967-1DE7-AF89-9E95-90B90E60BF65" name="Rating_Ride_FK">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:59:40 UTC</createdTime>
+<generatorID>22FFE58A-E7E9-FD9A-6339-BE03BE5ED38F</generatorID>
+<ownerDesignName>erd</ownerDesignName>
+<indexState>Foreign Key</indexState>
+<isSurrogateKey>false</isSurrogateKey>
+<indexColumnUsage>
+<colUsage columnID="D88DD75B-513A-EB61-BE9B-C5160092CD80"/>
+</indexColumnUsage>
+</ind_PK_UK>
+</indexes>
+</Table>
