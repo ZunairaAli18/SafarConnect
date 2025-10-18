@@ -3,7 +3,9 @@ from flask import Flask, jsonify, request
 from flask_socketio import SocketIO, emit 
 from dotenv import load_dotenv
 from models import db
-from db import drivers_from_ride, get_non_active, book_ride_proc
+from db import drivers_from_ride, get_non_active, book_ride_proc,login_user,signup_user
+from werkzeug.exceptions import Unauthorized
+from sqlalchemy.exc import IntegrityError 
 
 
 load_dotenv()
@@ -22,7 +24,54 @@ def create_app():
     def hello():
         return jsonify(msg='Flask ↔ Supabase ready!')
    
+    @app.post("/login")
+    def login():
+      data = request.get_json(force=True)
+      email = data.get("email")
+      password = data.get("password")
+      if not email or not password:
+          return jsonify(msg="email and password required"), 400
+
+      user, msg, ok = login_user(email, password)
+      if not ok:
+          raise Unauthorized(msg)
+      return jsonify(user=user, msg=msg, ok=ok)
     
+     # add at top
+
+    # ---------- app.py ----------
+    @app.post("/signup")
+    def signup():
+      print("Content-Type :", request.content_type)      # debug
+      print("Raw body     :", request.get_data(as_text=True))
+
+      data = request.get_json()          # remove force=True while debugging
+      if data is None:                   # will be None if JSON bad/missing header
+        return jsonify(msg="Body must be valid JSON"), 400
+
+      required = {"name", "email", "password", "phone", "type"}
+      if missing := required - data.keys():
+        return jsonify(msg=f"missing fields: {missing}"), 400
+
+      try:
+        user, msg, ok = signup_user(
+            name=data["name"],
+            email=data["email"],
+            password=data["password"],
+            phone=data["phone"],
+            utype=data["type"]
+        )
+      except IntegrityError as exc:
+        if "unique" in str(exc.orig).lower():
+            return jsonify(msg="Email already registered"), 409
+        raise
+
+      if not ok:                 # procedure returned ok=false
+        return jsonify(msg=msg), 409
+
+      return jsonify(user=user, msg=msg, ok=ok), 201
+    
+
     @app.get("/drivers/active")
     def active_drivers():
         return jsonify(drivers_from_ride())
