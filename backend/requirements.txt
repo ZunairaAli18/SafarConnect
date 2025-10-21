@@ -2,6 +2,6 @@ Flask==3.0.2
 Flask-SQLAlchemy==3.1.1
 psycopg[binary,pool]==3.2.1
 python-dotenv==1.0.0
-Flask-SocketIO==5.3.6
+flask-SocketIO==5.3.6
 python-socketio==5.11.1
 bidict==0.23.1

@@ -1,6 +1,6 @@
 import os
 from flask import Flask, jsonify, request
-from flask_socketio import SocketIO, emit 
+from flask_socketio import SocketIO, emit  # type: ignore
 from dotenv import load_dotenv
 from models import db
 from db import drivers_from_ride, get_non_active, book_ride_proc,login_user,signup_user
