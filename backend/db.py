@@ -65,3 +65,32 @@ def signup_user(name: str, email: str, password: str, phone: str, utype: str):
     if row and row.ok:                    # ok comes from the procedure now
         return dict(row._mapping), row.msg, True
     return None, row.msg if row else "Unknown error", False
+
+# ---------- DRIVER SIGNUP ----------
+def signup_driver(name: str, email: str, password: str, license_no: str):
+    sql = text("""
+        SELECT driver_id, name, email, license_no, msg, ok
+        FROM driver_signup(:n, :e, :p, :l);
+    """)
+    params = dict(n=name, e=email, p=password, l=license_no)
+    with engine.begin() as conn:
+        row = conn.execute(sql, params).fetchone()
+
+    if row and row.ok:
+        return dict(row._mapping), row.msg, True
+    return None, row.msg if row else "Unknown error", False
+
+
+# ---------- DRIVER LOGIN ----------
+def login_driver(email: str, password: str):
+    sql = text("""
+        SELECT driver_id, name, email, license_no, msg, ok
+        FROM driver_login(:e, :p);
+    """)
+    params = dict(e=email, p=password)
+    with engine.begin() as conn:
+        row = conn.execute(sql, params).fetchone()
+
+    if row and row.ok:
+        return dict(row._mapping), row.msg, True
+    return None, row.msg if row else "Invalid email or password. Try again", False

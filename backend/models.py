@@ -4,8 +4,11 @@ db = SQLAlchemy()
 class Driver(db.Model):
     __tablename__ = 'driver'
     driver_id   = db.Column(db.Integer, primary_key=True)
-    license_no  = db.Column(db.String(10))
-    rating_avg  = db.Column(db.Float)
+    name        = db.Column(db.String(50), nullable=False)
+    email       = db.Column(db.String(50), unique=True, nullable=False)
+    password    = db.Column(db.String(255), nullable=False)
+    license_no  = db.Column(db.String(20), unique=True, nullable=False)
+    rating_avg  = db.Column(db.Float, default=0.0)
 
 class User(db.Model):
     __tablename__ = 'user'
