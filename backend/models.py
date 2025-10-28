@@ -25,9 +25,18 @@ class Ride(db.Model):
     drop       = db.Column(db.String(150))
     ride_date  = db.Column(db.Date)
     fare       = db.Column(db.Numeric(10,2))
-    driver_id  = db.Column(db.Integer, db.ForeignKey('driver.driver_id'), nullable=False)
+    driver_id  = db.Column(db.Integer, db.ForeignKey('driver.driver_id'), nullable=True)
     user_id    = db.Column(db.Integer, db.ForeignKey('user.user_id'),   nullable=False)
-
+    pickup_latitude   = db.Column(db.Float)
+    pickup_longitude  = db.Column(db.Float)
+    drop_latitude     = db.Column(db.Float)
+    drop_longitude    = db.Column(db.Float)
+    current_latitude  = db.Column(db.Float)
+    current_longitude = db.Column(db.Float)
+    distance_km  = db.Column(db.Float)           # total route distance in km
+    duration_min = db.Column(db.Float)           # estimated travel time in minutes
+    last_route_update = db.Column(db.DateTime, default=db.func.now())
+    status=db.Column(db.String(50), nullable=True)
 class Payment(db.Model):
     __tablename__ = 'payment'
     payment_id = db.Column(db.Integer, primary_key=True)

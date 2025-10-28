@@ -2,10 +2,125 @@ from sqlalchemy import create_engine, text
 import os
 from dotenv import load_dotenv
 from werkzeug.exceptions import Unauthorized
+from models import Ride,db
 
 load_dotenv()
 DATABASE_URL = os.environ["DATABASE_URL"]   # set in .env
 engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_size=5)
+
+def update_driver_location(driver_id: int, lat: float, lon: float):
+    """
+    Updates a driver's current latitude and longitude in the database.
+    Returns (ok, message)
+    """
+    sql = text("""
+        UPDATE public.driver
+        SET "Latitude" = :lat,
+            "Longitude" = :lon,
+            last_updated = NOW()
+        WHERE driver_id = :did
+        RETURNING driver_id;
+    """)
+    with engine.begin() as conn:
+        row = conn.execute(sql, {"lat": lat, "lon": lon, "did": driver_id}).fetchone()
+
+    if row:
+        return True, f"Driver {driver_id}'s location updated successfully."
+    return False, f"Driver {driver_id} not found."
+
+def update_user_location(user_id: int, lat: float, lon: float):
+    """
+    Updates the user's current latitude/longitude and refreshes last_updated timestamp.
+    Returns (ok, message)
+    """
+    sql = text("""
+        UPDATE public."User"
+        SET current_latitude = :lat,
+            current_longitude = :lon,
+            last_updated = NOW()
+        WHERE user_id = :uid
+        RETURNING user_id;
+    """)
+    with engine.begin() as conn:
+        row = conn.execute(sql, {"lat": lat, "lon": lon, "uid": user_id}).fetchone()
+
+    if row:
+        return True, f"User {user_id}'s location updated successfully."
+    return False, f"User {user_id} not found."
+
+def complete_ride_by_driver(driver_id: int, ride_id: int):
+    """
+    Marks a ride as completed by the driver and sets driver active again.
+    Returns (ok, message)
+    """
+    with engine.begin() as conn:
+        # 1️⃣ Update ride status
+        complete_sql = text("""
+            UPDATE ride
+            SET status = 'completed'
+            WHERE ride_id = :r AND driver_id = :d AND status = 'in_progress'
+            RETURNING ride_id;
+        """)
+        row = conn.execute(complete_sql, {"r": ride_id, "d": driver_id}).fetchone()
+
+        if not row:
+            return False, "Ride not found or driver not authorized"
+
+        # 2️⃣ Mark driver active again
+        activate_sql = text("""
+            UPDATE driver
+            SET is_active = TRUE
+            WHERE driver_id = :d;
+        """)
+        conn.execute(activate_sql, {"d": driver_id})
+
+    return True, f"Ride {ride_id} marked as completed. Driver {driver_id} is now active again"
+
+def cancel_ride_by_driver(driver_id: int, ride_id: int):
+    """
+    Cancels a ride if it belongs to the given driver.
+    Also marks the driver as active again.
+    Returns (ok, message)
+    """
+    with engine.begin() as conn:
+        #  Cancel the ride
+        cancel_sql = text("""
+            UPDATE ride
+            SET status = 'cancelled'
+            WHERE ride_id = :r AND driver_id = :d
+            RETURNING ride_id;
+        """)
+        row = conn.execute(cancel_sql, {"r": ride_id, "d": driver_id}).fetchone()
+
+        if not row:
+            return False, "Ride not found or driver not authorized"
+
+        # 2️⃣ Mark driver active again
+        activate_sql = text("""
+            UPDATE driver
+            SET is_active = TRUE
+            WHERE driver_id = :d;
+        """)
+        conn.execute(activate_sql, {"d": driver_id})
+
+    return True, f"Ride {ride_id} cancelled successfully by driver {driver_id} (driver now active)"
+
+
+def assign_driver_to_ride(ride_id, driver_id):
+    """Assign a driver to the ride and mark it as pending."""
+    ride = Ride.query.get(ride_id)
+    if not ride:
+        return {"ok": False, "msg": "Ride not found"}, 404
+
+    # Update driver and status
+    ride.driver_id = driver_id
+    ride.status = "pending"
+    db.session.commit()
+
+    return {
+        "ok": True,
+        "msg": f"Driver {driver_id} assigned to ride {ride_id} with status 'pending'."
+    }, 200
 
 def drivers_from_ride():
     sql = text("SELECT * FROM drivers_from_ride()")

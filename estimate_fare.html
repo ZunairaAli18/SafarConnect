@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Safar Connect – Fare Estimator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f7fa;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 60px;
+    }
+    h1 { color: #2c3e50; }
+    form {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      width: 350px;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+      font-weight: bold;
+    }
+    input {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    button {
+      margin-top: 15px;
+      width: 100%;
+      padding: 10px;
+      border: none;
+      background: #3498db;
+      color: white;
+      font-size: 16px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #2980b9;
+    }
+    .result {
+      margin-top: 25px;
+      background: #ecf0f1;
+      padding: 15px;
+      border-radius: 8px;
+      width: 350px;
+      text-align: center;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>🚕 Safar Connect Fare Estimator</h1>
+
+  <form id="fareForm">
+    <label>Pickup Location:</label>
+    <input type="text" id="pickup" placeholder="e.g. NED University Karachi" required>
+
+    <label>Destination Location:</label>
+    <input type="text" id="drop" placeholder="e.g. Lucky One Mall Karachi" required>
+
+    <button type="submit">Estimate Fare</button>
+  </form>
+
+  <div class="result" id="resultBox">
+    <h3>Estimated Fare</h3>
+    <p id="distance"></p>
+    <p id="duration"></p>
+    <p id="fare"></p>
+  </div>
+
+  <script>
+    const ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImEwOWY2YjhjNTcwOTQwMzZhZTM1YzJhYmNmYWFiOWY4IiwiaCI6Im11cm11cjY0In0="; // replace with your OpenRouteService key
+
+    async function geocode(location) {
+      const url = `https://api.openrouteservice.org/geocode/search?api_key=${ORS_API_KEY}&text=${encodeURIComponent(location)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!data.features || data.features.length === 0) throw new Error("Location not found");
+      const [lon, lat] = data.features[0].geometry.coordinates;
+      return { lat, lon };
+    }
+
+    document.getElementById("fareForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const pickupText = document.getElementById("pickup").value;
+      const dropText   = document.getElementById("drop").value;
+
+      try {
+        // 1️⃣ Convert both addresses to lat/lon
+        const pickup = await geocode(pickupText);
+        const drop   = await geocode(dropText);
+
+        console.log("Pickup:", pickup);
+        console.log("Drop:", drop);
+
+        // 2️⃣ Send to backend
+        const res = await fetch("http://127.0.0.1:5000/estimate_fare", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            pickup_lat: pickup.lat,
+            pickup_lon: pickup.lon,
+            drop_lat: drop.lat,
+            drop_lon: drop.lon
+          })
+        });
+        
+        const data = await res.json();
+
+        // 3️⃣ Display results
+        const box = document.getElementById("resultBox");
+        box.style.display = "block";
+        document.getElementById("distance").innerText = `Distance: ${data.distance_km} km`;
+        document.getElementById("duration").innerText = `Duration: ${data.duration_min} min`;
+        document.getElementById("fare").innerText = `Estimated Fare: Rs ${data.estimated_fare}`;
+
+      } catch (err) {
+        alert("Error: " + err.message);
+      }
+    });
+  </script>
+</body>
+</html>
