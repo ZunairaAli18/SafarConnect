@@ -181,31 +181,37 @@ def signup_user(name: str, email: str, password: str, phone: str, utype: str):
         return dict(row._mapping), row.msg, True
     return None, row.msg if row else "Unknown error", False
 
-# ---------- DRIVER SIGNUP ----------
 def signup_driver(name: str, email: str, password: str, license_no: str):
     sql = text("""
-        SELECT driver_id, name, email, license_no, msg, ok
-        FROM driver_signup(:n, :e, :p, :l);
+        SELECT * FROM signup_driver(:p_name, :p_email, :p_password, :p_license_no)
     """)
-    params = dict(n=name, e=email, p=password, l=license_no)
+    params = dict(p_name=name, p_email=email, p_password=password, p_license_no=license_no)
     with engine.begin() as conn:
         row = conn.execute(sql, params).fetchone()
+    if row and row.driver_id is not None:
+        return dict(row._mapping), row.message, True
+    return None, row.message if row else "Signup failed", False
 
-    if row and row.ok:
-        return dict(row._mapping), row.msg, True
-    return None, row.msg if row else "Unknown error", False
 
 
-# ---------- DRIVER LOGIN ----------
+
+# ---------- DRIVER LOGIN HELPER ----------
 def login_driver(email: str, password: str):
+    """
+    Calls the login_driver stored procedure in the database.
+    Verifies hashed password in the DB.
+    Returns: (driver_dict, message, ok)
+    """
     sql = text("""
-        SELECT driver_id, name, email, license_no, msg, ok
-        FROM driver_login(:e, :p);
+        SELECT driver_id, name, email, license_no, message AS msg, TRUE AS ok
+        FROM login_driver(:p_email, :p_password)
     """)
-    params = dict(e=email, p=password)
+    params = dict(p_email=email, p_password=password)
+    
     with engine.begin() as conn:
         row = conn.execute(sql, params).fetchone()
-
-    if row and row.ok:
+    
+    if row:
         return dict(row._mapping), row.msg, True
-    return None, row.msg if row else "Invalid email or password. Try again", False
+    return None, "Invalid email or password", False
+

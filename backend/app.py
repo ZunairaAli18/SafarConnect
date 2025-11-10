@@ -81,42 +81,33 @@ def create_app():
         return jsonify(user=user, msg=msg, ok=ok), 201
     
 
-    # ---------- DRIVER SIGNUP ----------
     @app.post("/driver/signup")
     def driver_signup():
-        data = request.get_json(force=True)
-        required = {"name", "email", "password", "license_no"}
-        if missing := required - data.keys():
-            return jsonify(msg=f"Missing fields: {missing}"), 400
+      data = request.get_json(force=True)
+      driver, msg, ok = signup_driver(
+        name=data["name"],
+        email=data["email"],
+        password=data["password"],
+        license_no=data["license_no"]
+      )
+      if not ok:
+        return jsonify(msg=msg), 409
+      return jsonify(driver=driver, msg=msg, ok=ok), 201
 
-        try:
-            driver, msg, ok = signup_driver(
-                name=data["name"],
-                email=data["email"],
-                password=data["password"],
-                license_no=data["license_no"]
-            )
-        except IntegrityError as exc:
-            if "unique" in str(exc.orig).lower():
-                return jsonify(msg="Email or license already registered"), 409
-            raise
 
-        if not ok:
-            return jsonify(msg=msg), 409
-        return jsonify(driver=driver, msg=msg, ok=ok), 201
-    
-
-    # ---------- DRIVER LOGIN ----------
     @app.post("/driver/login")
     def driver_login():
-        data = request.get_json(force=True)
-        if not data.get("email") or not data.get("password"):
-            return jsonify(msg="email and password required"), 400
+      data = request.get_json(force=True)
+      driver, msg, ok = login_driver(
+        email=data["email"],
+        password=data["password"]
+      )
+      if not ok:
+        return jsonify(msg=msg), 401
+      return jsonify(driver=driver, msg=msg, ok=ok)
 
-        driver, msg, ok = login_driver(data["email"], data["password"])
-        if not ok:
-            return jsonify(msg=msg), 401
-        return jsonify(driver=driver, msg=msg, ok=ok)
+    
+
     
     @app.post("/user/<int:user_id>/current_loc")
     def update_user_current_loc(user_id):
@@ -132,7 +123,6 @@ def create_app():
       lat = float(data.get("latitude"))
       lon = float(data.get("longitude"))
 
-      from db import update_user_location
       ok, msg = update_user_location(user_id, lat, lon)
       return jsonify({"ok": ok, "msg": msg}), (200 if ok else 404)
     
@@ -150,7 +140,6 @@ def create_app():
       lat = float(data.get("latitude"))
       lon = float(data.get("longitude"))
 
-      from db import update_driver_location
       ok, msg = update_driver_location(driver_id, lat, lon)
       return jsonify({"ok": ok, "msg": msg}), (200 if ok else 404)
 
