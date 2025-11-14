@@ -308,3 +308,29 @@ def add_feedback_db(ride_id: int, user_id: int, rating: int, comment: str):
         return True, result[0]
     except Exception as e:
         return False, str(e)
+
+def get_user_profile(user_id: int):
+    """
+    Fetch a user's profile from the database.
+    Returns (user_dict, ok)
+    """
+    sql = text("SELECT * FROM public.\"User\" WHERE user_id = :user_id")
+    with engine.begin() as conn:
+        row = conn.execute(sql, {"user_id": user_id}).fetchone()
+    
+    if row:
+        return dict(row._mapping), True
+    return None, False
+
+def get_driver_profile(driver_id: int):
+    """
+    Fetch a driver's profile from the database.
+    Returns (driver_dict, ok)
+    """
+    sql = text("SELECT driver_id, name, email, license_no, rating_avg, is_active, \"Longitude\", \"Latitude\", acceptance_probablity, discount, last_updated FROM public.driver WHERE driver_id = :driver_id")
+    with engine.begin() as conn:
+        row = conn.execute(sql, {"driver_id": driver_id}).fetchone()
+    
+    if row:
+        return dict(row._mapping), True
+    return None, False

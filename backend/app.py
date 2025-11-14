@@ -3,7 +3,7 @@ from flask import Flask, jsonify, request
 from flask_socketio import SocketIO, emit,join_room,leave_room  # type: ignore
 from dotenv import load_dotenv
 from models import db
-from db import drivers_from_ride, get_non_active, book_ride_proc, login_user, signup_user,login_driver,signup_driver,assign_driver_to_ride,cancel_ride_by_driver,complete_ride_by_driver,update_user_location,update_driver_location,get_pending_rides,accept_ride_proc,reject_ride_proc,update_driver_and_ride_location,start_ride_db,add_feedback_db
+from db import drivers_from_ride, get_non_active, book_ride_proc, login_user, signup_user,login_driver,signup_driver,assign_driver_to_ride,cancel_ride_by_driver,complete_ride_by_driver,update_user_location,update_driver_location,get_pending_rides,accept_ride_proc,reject_ride_proc,update_driver_and_ride_location,start_ride_db,add_feedback_db,get_user_profile,get_driver_profile
 from werkzeug.exceptions import Unauthorized
 from sqlalchemy.exc import IntegrityError
 from route_service import RouteService
@@ -445,10 +445,31 @@ def create_app():
 
      ok, msg = add_feedback_db(ride_id, user_id, rating, comment)
      return jsonify({"ok": ok, "msg": msg})
+    
+    @app.get("/user/<int:user_id>/profile")
+    def user_profile(user_id):
+      """
+    Returns user profile data.
+      """
+      user, ok = get_user_profile(user_id)
+      if not ok:
+        return jsonify(ok=False, msg="User not found"), 404
+      return jsonify(ok=True, user=user)
+    
+    @app.get("/driver/<int:driver_id>/profile")
+    def driver_profile(driver_id):
+     """
+    Returns driver profile data.
+     """
+     from db import get_driver_profile
+     driver, ok = get_driver_profile(driver_id)
+     if not ok:
+        return jsonify(ok=False, msg="Driver not found"), 404
+     return jsonify(ok=True, driver=driver)
 
     return app, socketio
     
-
+    
 
 # ---------- run only when file is executed directly ----------
 if __name__ == '__main__':
@@ -457,3 +478,4 @@ if __name__ == '__main__':
     with app.app_context():     # now app is a real object
         db.create_all()         # create missing tables
     socketio.run(app, debug=True)
+
