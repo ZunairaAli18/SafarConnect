@@ -1,9 +1,9 @@
 import os
 from flask import Flask, jsonify, request
-from flask_socketio import SocketIO, emit  # type: ignore
+from flask_socketio import SocketIO, emit,join_room,leave_room  # type: ignore
 from dotenv import load_dotenv
 from models import db
-from db import drivers_from_ride, get_non_active, book_ride_proc, login_user, signup_user,login_driver,signup_driver,assign_driver_to_ride,cancel_ride_by_driver,complete_ride_by_driver,update_user_location,update_driver_location
+from db import drivers_from_ride, get_non_active, book_ride_proc, login_user, signup_user,login_driver,signup_driver,assign_driver_to_ride,cancel_ride_by_driver,complete_ride_by_driver,update_user_location,update_driver_location,get_pending_rides,accept_ride_proc,reject_ride_proc,update_driver_and_ride_location,start_ride_db,add_feedback_db
 from werkzeug.exceptions import Unauthorized
 from sqlalchemy.exc import IntegrityError
 from route_service import RouteService
@@ -126,6 +126,14 @@ def create_app():
       ok, msg = update_user_location(user_id, lat, lon)
       return jsonify({"ok": ok, "msg": msg}), (200 if ok else 404)
     
+    @app.post("/ride/<int:ride_id>/start")
+    def start_ride_endpoint(ride_id):
+     ok, msg = start_ride_db(ride_id)
+     
+     if not ok:
+        return jsonify({"ok": False, "msg": msg}), 400
+     return jsonify({"ok": True, "msg": msg})
+
     @app.post("/driver/<int:driver_id>/current_loc")
     def update_driver_current_loc(driver_id):
       """
@@ -142,7 +150,49 @@ def create_app():
 
       ok, msg = update_driver_location(driver_id, lat, lon)
       return jsonify({"ok": ok, "msg": msg}), (200 if ok else 404)
+    @app.post("/driver/<int:driver_id>/get_requests")
+    def driver_get_requests(driver_id):
+      """
+    Fetches all pending rides assigned to the driver.
+      """
+      try:
+        rides = get_pending_rides(driver_id)
+        if not rides:
+            return jsonify(msg="No pending rides found", rides=[], ok=True), 200
+        return jsonify(rides=rides, ok=True, msg="Pending rides fetched successfully"), 200
+      except Exception as e:
+        return jsonify(msg=str(e), ok=False), 500
+    
+    @app.post("/driver/<int:driver_id>/accept_ride")
+    def accept_ride(driver_id):
+     """
+    Driver accepts a ride. Updates ride status and driver active flag via stored procedure.
+     """
+     data = request.get_json(force=True)
+     ride_id = data.get("ride_id")
 
+     if not ride_id:
+        return jsonify(msg="ride_id is required", ok=False), 400
+
+     ok, msg = accept_ride_proc(driver_id, ride_id)
+     status_code = 200 if ok else 400
+     return jsonify(ok=ok, msg=msg), status_code
+    
+    @app.post("/driver/<int:driver_id>/reject")
+    def reject_ride(driver_id):
+     """
+    Driver rejects a ride. Updates ride status to 'rejected' via stored procedure.
+     """
+     data = request.get_json(force=True)
+     ride_id = data.get("ride_id")
+
+     if not ride_id:
+        return jsonify(msg="ride_id is required", ok=False), 400
+
+     ok, msg = reject_ride_proc(driver_id, ride_id)
+     status_code = 200 if ok else 400
+     return jsonify(ok=ok, msg=msg), status_code
+    
     @app.post("/ride/<int:ride_id>/complete")
     def ride_complete(ride_id):
      data = request.get_json()
@@ -151,39 +201,44 @@ def create_app():
      ok, msg = complete_ride_by_driver(driver_id, ride_id)
      return jsonify({"ok": ok, "msg": msg}), (200 if ok else 400)
 
-    @app.get("/drivers/active")
-    def active_drivers():
-        return jsonify(drivers_from_ride())
+    # @app.get("/drivers/active")
+    # def active_drivers():
+    #     return jsonify(drivers_from_ride())
 
-    @socketio.on('list_non_active')
-    def ws_list_non_active():
-        drivers = get_non_active()
-        emit('non_active_list', drivers)
+    # @socketio.on('list_non_active')
+    # def ws_list_non_active():
+    #     drivers = get_non_active()
+    #     emit('non_active_list', drivers)
 
-    @socketio.on('book_ride')
-    def ws_book_ride(data):
-        ok, ride_id, msg = book_ride_proc(
-            data['user_id'],
-            data['driver_id'],
-            data['pickup'],
-            data['drop'],
-            data['ride_date'],
-            data['fare']
-        )
-        # broadcast driver status change to every connected client
-        emit('driver_status_change',
-             {'driver_id': data['driver_id'], 'active': True},
-             broadcast=True)
-        # send booking result back to caller
-        emit('book_result', {'success': ok, 'ride_id': ride_id, 'msg': msg})
+    # @socketio.on('book_ride')
+    # def ws_book_ride(data):
+    #     ok, ride_id, msg = book_ride_proc(
+    #         data['user_id'],
+    #         data['driver_id'],
+    #         data['pickup'],
+    #         data['drop'],
+    #         data['ride_date'],
+    #         data['fare']
+    #     )
+    #     # broadcast driver status change to every connected client
+    #     emit('driver_status_change',
+    #          {'driver_id': data['driver_id'], 'active': True},
+    #          broadcast=True)
+    #     # send booking result back to caller
+    #     emit('book_result', {'success': ok, 'ride_id': ride_id, 'msg': msg})
+
     @app.post("/<int:driver_id>/<int:ride_id>/cancel_ride")
     def cancel_ride(driver_id, ride_id):
     
 
        ok, msg = cancel_ride_by_driver(driver_id, ride_id)
 
-       return jsonify({"ok": ok, "msg": msg}), (200 if ok else 404)
-   
+       return jsonify({"ok": ok, "msg": msg}), (200 if ok else 404) 
+    
+    
+
+ 
+    
     @app.post("/estimate_fare")
     def estimate_fare():
       data = request.get_json()
@@ -274,8 +329,56 @@ def create_app():
         "duration_min": round(duration_min, 1),
         "msg": f"Ride request created successfully at Rs {estimated_fare:.2f}"
      }), 201
+    
+##LIVE TRACKING FEATURE HANDLING
+    @socketio.on('join_ride')
+    def join_ride(data):
+      """
+     Passenger joins a room to receive live driver location for this ride.
+     Expects: { "ride_id": 19 }
+     """
+      ride_id = data.get("ride_id")
+      if ride_id:
+        join_room(f"ride_{ride_id}")
+        emit("joined_room", {"msg": f"Joined ride {ride_id}"})
+    
+    @socketio.on('driver_location_update')
+    def handle_driver_location(data):
+      """
+    Driver sends live location updates.
+    Expects:
+    {
+        "driver_id": 1,
+        "ride_id": 19,
+        "latitude": 24.8600,
+        "longitude": 67.0015
+    }
+      """
+      driver_id = data.get("driver_id")
+      ride_id = data.get("ride_id")
+      lat = data.get("latitude")
+      lon = data.get("longitude")
 
+      if not all([driver_id, ride_id, lat, lon]):
+        emit('location_update_response', {"ok": False, "msg": "Missing fields"})
+        return
 
+      ok = update_driver_and_ride_location(driver_id, ride_id, lat, lon)
+      if ok:
+        emit('location_update_response', {"ok": True, "msg": "Location updated"})
+        # Broadcast to passengers in this ride's room only
+        emit('ride_location', {"lat": lat, "lon": lon}, room=f"ride_{ride_id}")
+      else:
+        emit('location_update_response', {"ok": False, "msg": "Update failed"})
+    
+    @socketio.on('leave_ride')
+    def leave_ride(data):
+     ride_id = data.get("ride_id")
+     if ride_id:
+        leave_room(f"ride_{ride_id}")
+        emit("left_room", {"msg": f"Left ride {ride_id}"})
+
+  
     # @socketio.on("driver_location")
     # def ws_driver_location(data):
     #   driver_id = data["driver_id"]
@@ -318,21 +421,31 @@ def create_app():
     #     ride.last_route_update = db.func.now()
     #     db.session.commit()
 
-    @socketio.on("ride_complete")
-    def ws_ride_complete(data):
-     ride_id = data["ride_id"]
-     lat, lon = data["lat"], data["lon"]
+    # @socketio.on("ride_complete")
+    # def ws_ride_complete(data):
+    #  ride_id = data["ride_id"]
+    #  lat, lon = data["lat"], data["lon"]
 
-     from models import Ride, db
-     ride = Ride.query.get(ride_id)
-     if ride:
-        ride.current_latitude  = lat
-        ride.current_longitude = lon
-        ride.last_route_update = db.func.now()
-        db.session.commit()
+    #  from models import Ride, db
+    #  ride = Ride.query.get(ride_id)
+    #  if ride:
+    #     ride.current_latitude  = lat
+    #     ride.current_longitude = lon
+    #     ride.last_route_update = db.func.now()
+    #     db.session.commit()
 
-     emit("ride_complete_ack", {"ride_id": ride_id, "msg": "Ride data saved"})
-     
+    #  emit("ride_complete_ack", {"ride_id": ride_id, "msg": "Ride data saved"})
+    
+    @app.post("/ride/<int:ride_id>/feedback")
+    def feedback_endpoint(ride_id):
+     data = request.json
+     user_id = data.get("user_id")
+     rating = data.get("rating")
+     comment = data.get("comment")
+
+     ok, msg = add_feedback_db(ride_id, user_id, rating, comment)
+     return jsonify({"ok": ok, "msg": msg})
+
     return app, socketio
     
 

@@ -215,3 +215,96 @@ def login_driver(email: str, password: str):
         return dict(row._mapping), row.msg, True
     return None, "Invalid email or password", False
 
+def get_pending_rides(driver_id: int):
+    """
+    Calls the stored procedure get_pending_rides to fetch pending rides for a driver.
+    Returns a list of ride dictionaries.
+    """
+    sql = text("SELECT * FROM get_pending_rides(:driver_id)")
+    with engine.begin() as conn:
+        rows = conn.execute(sql, {"driver_id": driver_id}).fetchall()
+
+    # Convert SQLAlchemy Row objects to dictionaries
+    return [dict(r._mapping) for r in rows]
+
+def accept_ride_proc(driver_id: int, ride_id: int):
+    """
+    Calls the accept_ride stored procedure.
+    Returns (ok, msg)
+    """
+    sql = text("SELECT * FROM accept_ride(:driver_id, :ride_id)")
+    with engine.begin() as conn:
+        row = conn.execute(sql, {"driver_id": driver_id, "ride_id": ride_id}).fetchone()
+
+    if row:
+        return row.ok, row.msg
+    return False, "Unknown error occurred"
+
+
+def reject_ride_proc(driver_id: int, ride_id: int):
+    """
+    Calls the reject_ride stored procedure.
+    Returns (ok, msg)
+    """
+    sql = text("SELECT * FROM reject_ride(:driver_id, :ride_id)")
+    with engine.begin() as conn:
+        row = conn.execute(sql, {"driver_id": driver_id, "ride_id": ride_id}).fetchone()
+
+    if row:
+        return row.ok, row.msg
+    return False, "Unknown error occurred"
+
+
+def update_driver_and_ride_location(driver_id: int, ride_id: int, lat: float, lon: float):
+    """
+    Updates driver's location and the ride's current location in DB.
+    """
+    with engine.begin() as conn:
+        # Update driver
+        conn.execute(
+            text("""
+                UPDATE driver
+                SET "Latitude" = :lat,
+                    "Longitude" = :lon,
+                    last_updated = NOW()
+                WHERE driver_id = :driver_id
+            """),
+            {"lat": lat, "lon": lon, "driver_id": driver_id}
+        )
+
+        # Update active ride location
+        conn.execute(
+            text("""
+                UPDATE ride
+                SET current_latitude = :lat,
+                    current_longitude = :lon,
+                    last_route_update = NOW()
+                WHERE ride_id = :ride_id
+            """),
+            {"lat": lat, "lon": lon, "ride_id": ride_id}
+        )
+
+    return True
+
+def start_ride_db(ride_id: int):
+    sql = text("SELECT start_ride(:rid) AS msg;")
+
+    with engine.begin() as conn:
+        result = conn.execute(sql, {"rid": ride_id}).fetchone()
+        if result:
+            return True, result.msg
+        return False, "Database error"
+
+def add_feedback_db(ride_id: int, user_id: int, rating: int, comment: str):
+    sql = text("SELECT add_ride_feedback(:ride_id, :user_id, :rating, :comment) AS msg;")
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(sql, {
+                "ride_id": ride_id,
+                "user_id": user_id,
+                "rating": rating,
+                "comment": comment
+            }).fetchone()
+        return True, result[0]
+    except Exception as e:
+        return False, str(e)
