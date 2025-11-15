@@ -152,7 +152,7 @@ def login_user(email: str, password: str):
                u.email,
                u.phone,
                u.type
-        FROM public."user" u
+        FROM public."User" u
         WHERE u.email = :email
           AND u.password = crypt(:pwd, u.password)
         LIMIT 1

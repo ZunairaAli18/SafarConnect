@@ -6,6 +6,7 @@ from functools import wraps
 from flask_socketio import SocketIO, emit,join_room,leave_room  # type: ignore
 from dotenv import load_dotenv
 from models import db
+import redis
 from db import drivers_from_ride, get_non_active, book_ride_proc, login_user, signup_user,login_driver,signup_driver,assign_driver_to_ride,cancel_ride_by_driver,complete_ride_by_driver,update_user_location,update_driver_location,get_pending_rides,accept_ride_proc,reject_ride_proc,update_driver_and_ride_location,start_ride_db,add_feedback_db,get_user_profile,get_driver_profile
 from werkzeug.exceptions import Unauthorized
 from sqlalchemy.exc import IntegrityError
@@ -22,6 +23,8 @@ fare_calc = FareCalculator()
 driver_locations = {}   # store driver_id → (lat, lon)
 
 SECRET_KEY='cb2a1f2a23921e96d3570d83082763beffb231cbb9ed0084238972d134c26f01'
+r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+
 def create_access_token(user_id=None, driver_id=None, expires_in=3600):
     payload = {
         "exp": datetime.datetime.utcnow() + datetime.timedelta(seconds=expires_in),
@@ -29,9 +32,13 @@ def create_access_token(user_id=None, driver_id=None, expires_in=3600):
     }
     if user_id:
         payload["user_id"] = user_id
+        key = f"user:{user_id}"
     if driver_id:
         payload["driver_id"] = driver_id
+        key = f"driver:{driver_id}"
     token = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+    r.set(token, key, ex=expires_in)
+
     return token
 
 
@@ -49,7 +56,10 @@ def token_required(user_type=None):
 
         if not token:
             return jsonify(msg="Token is missing"), 401
-
+        
+        if not r.exists(token):
+           return jsonify(msg="Token is invalid or logged out"), 401
+        
         try:
             data = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
             request.user_id = data["user_id"]   # attach user id to request
@@ -60,12 +70,14 @@ def token_required(user_type=None):
                   return jsonify(msg="User token required"), 403
             
         except jwt.ExpiredSignatureError:
+            r.delete(token)
             return jsonify(msg="Token has expired"), 401
         except jwt.InvalidTokenError:
             return jsonify(msg="Invalid token"), 401
 
         return f(*args, **kwargs)
      return decorated
+    return decorator
 
 def create_app():
     app = Flask(__name__)
@@ -129,7 +141,16 @@ def create_app():
         token = create_access_token(user_id=user["user_id"])
         return jsonify(user=user, token=token, msg=msg, ok=ok), 201
     
-
+    @app.post("/user/logout")
+    @token_required(user_type="user")
+    def user_logout():
+       auth_header=request.headers.get("Authorization")
+       if not auth_header or not auth_header.startswith("Bearer"):
+          return jsonify(msg="Token missing"),401
+       token=auth_header.split(" ")[1]
+       r.delete(token)
+       return jsonify(msg="Logged out successfully"), 200
+       
     @app.post("/driver/signup")
     def driver_signup():
       data = request.get_json(force=True)
@@ -157,7 +178,15 @@ def create_app():
       token=create_access_token(driver_id=driver["driver_id"])
       return jsonify(driver=driver, token=token, msg=msg, ok=ok)
 
-    
+    @app.post("/driver/logout")
+    @token_required(user_type="driver")
+    def driver_logout():
+       auth_header=request.headers.get("Authorization")
+       if not auth_header or not auth_header.startswith("Bearer"):
+          return jsonify(msg="Token missing"),401
+       token=auth_header.split(" ")[1]
+       r.delete(token)
+       return jsonify(msg="Logged out successfully"), 200
 
     
     @app.post("/user/<int:user_id>/current_loc")
