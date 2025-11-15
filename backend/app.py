@@ -1,5 +1,8 @@
 import os
 from flask import Flask, jsonify, request
+import jwt
+import datetime
+from functools import wraps
 from flask_socketio import SocketIO, emit,join_room,leave_room  # type: ignore
 from dotenv import load_dotenv
 from models import db
@@ -18,10 +21,55 @@ route_service = RouteService(api_key=os.getenv("ORS_API_KEY"))
 fare_calc = FareCalculator()
 driver_locations = {}   # store driver_id → (lat, lon)
 
+SECRET_KEY='cb2a1f2a23921e96d3570d83082763beffb231cbb9ed0084238972d134c26f01'
+def create_access_token(user_id=None, driver_id=None, expires_in=3600):
+    payload = {
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(seconds=expires_in),
+        "iat": datetime.datetime.utcnow()
+    }
+    if user_id:
+        payload["user_id"] = user_id
+    if driver_id:
+        payload["driver_id"] = driver_id
+    token = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+    return token
+
+
+def token_required(user_type=None):
+    def decorator(f):
+     @wraps(f)
+     def decorated(*args, **kwargs):
+        token = None
+
+        # token comes from Authorization header → "Bearer <token>"
+        if "Authorization" in request.headers:
+            auth_header = request.headers["Authorization"]
+            if auth_header.startswith("Bearer "):
+                token = auth_header.split(" ")[1]
+
+        if not token:
+            return jsonify(msg="Token is missing"), 401
+
+        try:
+            data = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+            request.user_id = data["user_id"]   # attach user id to request
+            request.driver_id = data.get("driver_id")
+            if user_type == "driver" and "driver_id" not in data:
+                  return jsonify(msg="Driver token required"), 403
+            if user_type == "user" and "user_id" not in data:
+                  return jsonify(msg="User token required"), 403
+            
+        except jwt.ExpiredSignatureError:
+            return jsonify(msg="Token has expired"), 401
+        except jwt.InvalidTokenError:
+            return jsonify(msg="Invalid token"), 401
+
+        return f(*args, **kwargs)
+     return decorated
 
 def create_app():
     app = Flask(__name__)
-    app.config['SECRET_KEY'] = 'change_me'
+    app.config['JWT_SECRET_KEY'] = 'cb2a1f2a23921e96d3570d83082763beffb231cbb9ed0084238972d134c26f01'
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DATABASE_URL']
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     CORS(app, origins=["http://127.0.0.1:5500"])
@@ -44,7 +92,8 @@ def create_app():
         user, msg, ok = login_user(email, password)
         if not ok:
             raise Unauthorized(msg)
-        return jsonify(user=user, msg=msg, ok=ok)
+        token = create_access_token(user_id=user["user_id"])
+        return jsonify(user=user,token=token, msg=msg, ok=ok)
 
        # add at top
 
@@ -77,8 +126,8 @@ def create_app():
 
         if not ok:                 # procedure returned ok=false
             return jsonify(msg=msg), 409
-
-        return jsonify(user=user, msg=msg, ok=ok), 201
+        token = create_access_token(user_id=user["user_id"])
+        return jsonify(user=user, token=token, msg=msg, ok=ok), 201
     
 
     @app.post("/driver/signup")
@@ -92,7 +141,8 @@ def create_app():
       )
       if not ok:
         return jsonify(msg=msg), 409
-      return jsonify(driver=driver, msg=msg, ok=ok), 201
+      token=create_access_token(driver_id=driver["driver_id"])
+      return jsonify(driver=driver,token=token, msg=msg, ok=ok), 201
 
 
     @app.post("/driver/login")
@@ -104,7 +154,8 @@ def create_app():
       )
       if not ok:
         return jsonify(msg=msg), 401
-      return jsonify(driver=driver, msg=msg, ok=ok)
+      token=create_access_token(driver_id=driver["driver_id"])
+      return jsonify(driver=driver, token=token, msg=msg, ok=ok)
 
     
 
