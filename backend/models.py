@@ -58,3 +58,23 @@ class Vehicle(db.Model):
     vehicle_no = db.Column(db.String(10))
     type       = db.Column(db.String(20))
     driver_id  = db.Column(db.Integer, db.ForeignKey('driver.driver_id'), unique=True, nullable=False)
+
+
+class Weather(db.Model):
+    __tablename__ = 'weather'
+    
+    # Composite primary key (ride_id + checked_at)
+    ride_id = db.Column(db.Integer, db.ForeignKey('ride.ride_id', ondelete='CASCADE'), primary_key=True, nullable=False)
+    checked_at = db.Column(db.DateTime, primary_key=True, default=db.func.current_timestamp())
+    
+    # Other attributes
+    temperature = db.Column(db.Float, nullable=True)
+    wind_speed = db.Column(db.Float, nullable=True)
+    visibility = db.Column(db.Float, nullable=True)
+    humidity = db.Column(db.Float, nullable=True)
+    weather_code = db.Column(db.Integer, nullable=True)
+    condition = db.Column(db.String(100), nullable=True)
+    is_safe = db.Column(db.Boolean, default=True)
+    
+    # Relationship to Ride (weak entity relationship)
+    ride = db.relationship('Ride', backref='weather_checks')

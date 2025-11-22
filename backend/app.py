@@ -81,6 +81,39 @@ def token_required(user_type=None):
      return decorated
     return decorator
 
+def save_weather_data(ride_id, weather_details, is_safe):
+    """
+    Helper function to save weather data in the database.
+    Creates a new weather check record each time (historical tracking).
+    
+    Args:
+        ride_id: The ride ID to associate weather data with
+        weather_details: Dictionary containing weather information
+        is_safe: Boolean indicating if conditions are safe
+    """
+    from models import Weather
+    
+    try:
+        # Always create new record to maintain weather check history
+        weather_record = Weather(
+            ride_id=ride_id,
+            checked_at=db.func.current_timestamp(),
+            temperature=weather_details.get('temperature'),
+            wind_speed=weather_details.get('wind_speed_ms'),
+            visibility=weather_details.get('visibility_m'),
+            humidity=weather_details.get('humidity'),
+            weather_code=weather_details.get('weather_code'),
+            condition=weather_details.get('condition'),
+            is_safe=is_safe
+        )
+        db.session.add(weather_record)
+        db.session.commit()
+        return True
+    except Exception as e:
+        print(f"Error saving weather data: {e}")
+        db.session.rollback()
+        return False
+    
 def create_app():
     app = Flask(__name__)
     app.config['JWT_SECRET_KEY'] = 'cb2a1f2a23921e96d3570d83082763beffb231cbb9ed0084238972d134c26f01'
@@ -264,7 +297,7 @@ def create_app():
          ride.pickup_latitude, 
          ride.pickup_longitude
      )
-
+     save_weather_data(ride_id, weather_details, is_safe)
      if not is_safe:
          return jsonify({
              "ok": False,
@@ -391,7 +424,7 @@ def create_app():
             ride.pickup_latitude,
             ride.pickup_longitude
         )
-
+        save_weather_data(ride_id, weather_details, is_safe)
         if not is_safe:
             return jsonify({
                 "ok": False,
@@ -428,7 +461,7 @@ def create_app():
          pickup_lat, 
          pickup_lon
      )
-
+    #  save_weather_data(ride_id, weather_details, is_safe)
      if not is_safe:
          return jsonify({
              "ok": False,
