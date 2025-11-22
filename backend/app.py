@@ -14,6 +14,7 @@ from route_service import RouteService
 from fare_calculator import FareCalculator
 from time import time
 from flask_cors import CORS
+from WeatherService import WeatherService
 
 load_dotenv()
 
@@ -21,6 +22,7 @@ load_dotenv()
 route_service = RouteService(api_key=os.getenv("ORS_API_KEY"))
 fare_calc = FareCalculator()
 driver_locations = {}   # store driver_id → (lat, lon)
+weather_service = WeatherService(api_key=os.getenv("OPENWEATHER_API_KEY"))
 
 SECRET_KEY='cb2a1f2a23921e96d3570d83082763beffb231cbb9ed0084238972d134c26f01'
 r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
@@ -253,10 +255,33 @@ def create_app():
 
      if not ride_id:
         return jsonify(msg="ride_id is required", ok=False), 400
+     from models import Ride
+     ride = Ride.query.get(ride_id)
+     if not ride:
+         return jsonify(msg="Ride not found", ok=False), 404
+     
+     is_safe, alert_msg, weather_details = weather_service.check_weather_safety(
+         ride.pickup_latitude, 
+         ride.pickup_longitude
+     )
 
+     if not is_safe:
+         return jsonify({
+             "ok": False,
+             "msg": "Cannot accept ride due to unsafe weather conditions",
+             "weather_alert": alert_msg,
+             "weather_details": weather_details
+         }), 400
      ok, msg = accept_ride_proc(driver_id, ride_id)
+     response = {"ok": ok, "msg": msg}
+     
+     # Include weather info even if safe (as advisory)
+     if weather_details.get('severity') in ['moderate', 'mild']:
+         response["weather_warning"] = alert_msg
+         response["weather_details"] = weather_details
+     
      status_code = 200 if ok else 400
-     return jsonify(ok=ok, msg=msg), status_code
+     return jsonify(response), status_code
     
     @app.post("/driver/<int:driver_id>/reject")
     def reject_ride(driver_id):
@@ -328,20 +353,27 @@ def create_app():
       drop_lat   = float(data["drop_lat"])
       drop_lon   = float(data["drop_lon"])
       print(pickup_lat,pickup_lon,drop_lat,drop_lon)
-    # 1️⃣ Get optimized route details (distance & duration)
+      is_safe, alert_msg, weather_details = weather_service.check_weather_safety(
+          pickup_lat, 
+          pickup_lon
+      )
+    #  Get optimized route details (distance & duration)
       distance_km, duration_min,_ = route_service.get_route(
         (pickup_lon, pickup_lat),
         (drop_lon, drop_lat)
       )
 
-    # 2️⃣ Compute estimated fare
+    #  Compute estimated fare
       estimated_fare = fare_calc.compute(distance_km, duration_min)
       print(estimate_fare)
-    # 3️⃣ Send result back to frontend
+    #  Send result back to frontend
       return jsonify({
         "distance_km": round(distance_km, 2),
         "duration_min": round(duration_min, 1),
-        "estimated_fare": round(estimated_fare, 2)
+        "estimated_fare": round(estimated_fare, 2),
+        "weather_safe": is_safe,
+        "weather_alert": alert_msg,
+        "weather_details": weather_details
       })
     
     @app.post("/request_driver")
@@ -349,8 +381,28 @@ def create_app():
         data = request.get_json()
         ride_id = int(data["ride_id"])
         driver_id = int(data["driver_id"])
+        from models import Ride
+        ride = Ride.query.get(ride_id)
+        if not ride:
+            return jsonify({"ok": False, "msg": "Ride not found"}), 404
 
+        # Check current weather at pickup location
+        is_safe, alert_msg, weather_details = weather_service.check_weather_safety(
+            ride.pickup_latitude,
+            ride.pickup_longitude
+        )
+
+        if not is_safe:
+            return jsonify({
+                "ok": False,
+                "msg": "Cannot assign driver due to unsafe weather conditions",
+                "weather_alert": alert_msg,
+                "weather_details": weather_details
+            }), 400
         response, status = assign_driver_to_ride(ride_id, driver_id)
+        if weather_details.get('severity') in ['moderate', 'mild']:
+            response["weather_warning"] = alert_msg
+            
         return jsonify(response), status
 
     @app.post("/create_ride_request")
@@ -371,7 +423,20 @@ def create_app():
      distance_km = float(data.get("distance_km", 0))
      duration_min = float(data.get("duration_min", 0))
      ride_date  = db.func.current_date()
+     
+     is_safe, alert_msg, weather_details = weather_service.check_weather_safety(
+         pickup_lat, 
+         pickup_lon
+     )
 
+     if not is_safe:
+         return jsonify({
+             "ok": False,
+             "msg": "Ride request blocked due to severe weather conditions",
+             "weather_alert": alert_msg,
+             "weather_details": weather_details
+         }), 400
+     
     #  Validate estimated fare
      if not (min_fare <= estimated_fare <= max_fare):
         return jsonify({
@@ -401,14 +466,40 @@ def create_app():
      db.session.add(new_ride)
      db.session.commit()
 
-    #  Return response
-     return jsonify({
+     response = {
+        "ok": True,
         "ride_id": new_ride.ride_id,
         "estimated_fare": round(estimated_fare, 2),
         "distance_km": round(distance_km, 2),
         "duration_min": round(duration_min, 1),
         "msg": f"Ride request created successfully at Rs {estimated_fare:.2f}"
-     }), 201
+     }
+
+     # Include weather advisory if moderate conditions
+     if weather_details.get('severity') in ['moderate', 'mild']:
+         response["weather_warning"] = alert_msg
+         response["weather_details"] = weather_details
+
+     return jsonify(response), 201
+    
+    @app.post("/check_weather")
+    def check_weather():
+        """
+        Standalone endpoint to check weather at any location.
+        Useful for real-time updates.
+        """
+        data = request.get_json()
+        lat = float(data.get("latitude"))
+        lon = float(data.get("longitude"))
+
+        is_safe, alert_msg, weather_details = weather_service.check_weather_safety(lat, lon)
+
+        return jsonify({
+            "ok": True,
+            "is_safe": is_safe,
+            "alert": alert_msg,
+            "weather": weather_details
+        })
     
 ##LIVE TRACKING FEATURE HANDLING
     @socketio.on('join_ride')
