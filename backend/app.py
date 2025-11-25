@@ -1,5 +1,6 @@
 import os
 from flask import Flask, jsonify, request
+from sqlalchemy import text,create_engine
 import jwt
 import datetime
 from functools import wraps
@@ -7,7 +8,7 @@ from flask_socketio import SocketIO, emit,join_room,leave_room  # type: ignore
 from dotenv import load_dotenv
 from models import db
 import redis
-from db import drivers_from_ride, get_non_active, book_ride_proc, login_user, signup_user,login_driver,signup_driver,assign_driver_to_ride,cancel_ride_by_driver,complete_ride_by_driver,update_user_location,update_driver_location,get_pending_rides,accept_ride_proc,reject_ride_proc,update_driver_and_ride_location,start_ride_db,add_feedback_db,get_user_profile,get_driver_profile
+from db import drivers_from_ride, get_non_active, book_ride_proc, login_user, signup_user,login_driver,signup_driver,assign_driver_to_ride,cancel_ride_by_driver,complete_ride_by_driver,update_user_location,update_driver_location,get_pending_rides,accept_ride_proc,reject_ride_proc,update_driver_and_ride_location,start_ride_db,add_feedback_db,get_user_profile,get_driver_profile,get_vehicle_by_driver_id,create_vehicle,update_vehicle,update_driver_discount,start_ride_transaction,complete_ride_transaction
 from werkzeug.exceptions import Unauthorized
 from sqlalchemy.exc import IntegrityError
 from route_service import RouteService
@@ -23,6 +24,7 @@ route_service = RouteService(api_key=os.getenv("ORS_API_KEY"))
 fare_calc = FareCalculator()
 driver_locations = {}   # store driver_id → (lat, lon)
 weather_service = WeatherService(api_key=os.getenv("OPENWEATHER_API_KEY"))
+engine = create_engine("postgresql://postgres.iiegkhqdrgiywqvzodvr:zunairamuntaharabail@aws-1-us-east-1.pooler.supabase.com:6543/postgres", pool_pre_ping=True, pool_size=5)
 
 SECRET_KEY='cb2a1f2a23921e96d3570d83082763beffb231cbb9ed0084238972d134c26f01'
 r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
@@ -34,9 +36,11 @@ def create_access_token(user_id=None, driver_id=None, expires_in=3600):
     }
     if user_id:
         payload["user_id"] = user_id
+        payload["user_type"] = "user"
         key = f"user:{user_id}"
     if driver_id:
         payload["driver_id"] = driver_id
+        payload["user_type"] = "driver"
         key = f"driver:{driver_id}"
     token = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
     r.set(token, key, ex=expires_in)
@@ -64,12 +68,15 @@ def token_required(user_type=None):
         
         try:
             data = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-            request.user_id = data["user_id"]   # attach user id to request
-            request.driver_id = data.get("driver_id")
             if user_type == "driver" and "driver_id" not in data:
                   return jsonify(msg="Driver token required"), 403
             if user_type == "user" and "user_id" not in data:
                   return jsonify(msg="User token required"), 403
+            if user_type == "user":
+             request.user_id = data["user_id"]   # attach user id to request
+            else: 
+             request.driver_id = data.get("driver_id")
+            
             
         except jwt.ExpiredSignatureError:
             r.delete(token)
@@ -119,7 +126,7 @@ def create_app():
     app.config['JWT_SECRET_KEY'] = 'cb2a1f2a23921e96d3570d83082763beffb231cbb9ed0084238972d134c26f01'
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DATABASE_URL']
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    CORS(app, origins=["http://127.0.0.1:5500"])
+    CORS(app, origins=["http://127.0.0.1:3000", "http://localhost:3000"])
     db.init_app(app)
     socketio = SocketIO(app, cors_allowed_origins='*')
 
@@ -140,6 +147,7 @@ def create_app():
         if not ok:
             raise Unauthorized(msg)
         token = create_access_token(user_id=user["user_id"])
+        print(user)
         return jsonify(user=user,token=token, msg=msg, ok=ok)
 
        # add at top
@@ -184,7 +192,7 @@ def create_app():
           return jsonify(msg="Token missing"),401
        token=auth_header.split(" ")[1]
        r.delete(token)
-       return jsonify(msg="Logged out successfully"), 200
+       return jsonify(msg="Logged out suc   cessfully"), 200
        
     @app.post("/driver/signup")
     def driver_signup():
@@ -225,6 +233,7 @@ def create_app():
 
     
     @app.post("/user/<int:user_id>/current_loc")
+    @token_required(user_type="user") 
     def update_user_current_loc(user_id):
       """
       Endpoint to update user's current location (for riders or drivers).
@@ -242,14 +251,55 @@ def create_app():
       return jsonify({"ok": ok, "msg": msg}), (200 if ok else 404)
     
     @app.post("/ride/<int:ride_id>/start")
+    @token_required(user_type="driver")
     def start_ride_endpoint(ride_id):
-     ok, msg = start_ride_db(ride_id)
+     """
+    Start a ride. Driver must have accepted the ride first.
+    
+    Headers:
+        Authorization: Bearer <driver_token>
+    
+    Returns:
+        200: Ride started successfully
+        400: Invalid request (wrong status, not assigned to driver, etc.)
+        401: Unauthorized
+        500: Server error
+     """
+    # Get driver_id from token (set by @token_required decorator)
+     driver_id = request.driver_id
+    
+    # Call transaction function
+     success, message = start_ride_transaction(ride_id, driver_id)
+     if success:
+       socketio.emit('ride_started', {
+        'ride_id': ride_id,
+        'status': 'in_progress',
+        'driver_id': driver_id
+        }, room=f'ride_{ride_id}')
+       
+     if not success:
+        return jsonify({
+            "ok": False, 
+            "msg": message
+        }), 400
+    
+     return jsonify({
+        "ok": True, 
+        "msg": message,
+        "ride_id": ride_id,
+        "status": "in_progress"
+     }), 200
+    # @app.post("/ride/<int:ride_id>/start")
+    # @token_required(user_type="driver") 
+    # def start_ride_endpoint(ride_id):
+    #  ok, msg = start_ride_db(ride_id)
      
-     if not ok:
-        return jsonify({"ok": False, "msg": msg}), 400
-     return jsonify({"ok": True, "msg": msg})
+    #  if not ok:
+    #     return jsonify({"ok": False, "msg": msg}), 400
+    #  return jsonify({"ok": True, "msg": msg})
 
     @app.post("/driver/<int:driver_id>/current_loc")
+    @token_required(user_type="driver") 
     def update_driver_current_loc(driver_id):
       """
     Endpoint to update the driver's current location.
@@ -279,6 +329,7 @@ def create_app():
         return jsonify(msg=str(e), ok=False), 500
     
     @app.post("/driver/<int:driver_id>/accept_ride")
+    @token_required(user_type="driver")
     def accept_ride(driver_id):
      """
     Driver accepts a ride. Updates ride status and driver active flag via stored procedure.
@@ -312,11 +363,23 @@ def create_app():
      if weather_details.get('severity') in ['moderate', 'mild']:
          response["weather_warning"] = alert_msg
          response["weather_details"] = weather_details
-     
+     from models import Driver
+     if ok:
+        driver = Driver.query.get(driver_id)
+        socketio.emit('driver_accepted', {
+            'ride_id': ride_id,
+            'driver_id': driver_id,
+            'driver_name': driver.name if driver else 'Driver',
+            'driver_phone': driver.phone if driver else '',
+            'driver_rating': driver.rating if driver else 0
+        }, room=f'ride_{ride_id}')
+        print(f'Driver {driver_id} accepted ride {ride_id}')
+    
      status_code = 200 if ok else 400
      return jsonify(response), status_code
     
     @app.post("/driver/<int:driver_id>/reject")
+    @token_required(user_type="driver") 
     def reject_ride(driver_id):
      """
     Driver rejects a ride. Updates ride status to 'rejected' via stored procedure.
@@ -328,16 +391,91 @@ def create_app():
         return jsonify(msg="ride_id is required", ok=False), 400
 
      ok, msg = reject_ride_proc(driver_id, ride_id)
+     if ok:
+        socketio.emit('driver_rejected', {
+            'ride_id': ride_id,
+            'driver_id': driver_id,
+            'msg': msg
+        }, room=f'ride_{ride_id}')
+        print(f'Driver {driver_id} rejected ride {ride_id}')
+    
      status_code = 200 if ok else 400
      return jsonify(ok=ok, msg=msg), status_code
     
     @app.post("/ride/<int:ride_id>/complete")
+    @token_required(user_type="driver")
     def ride_complete(ride_id):
-     data = request.get_json()
-     driver_id = data.get("driver_id")
+     """
+    Complete a ride. Driver must have started the ride first.
+    Creates payment record and frees up the driver.
+    
+    Request Body:
+        {
+            "payment_method": "cash" | "card" | "wallet" (optional, defaults to cash)
+        }
+    
+    Headers:
+        Authorization: Bearer <driver_token>
+    
+    Returns:
+        200: Ride completed successfully with payment details
+        400: Invalid request (wrong status, not assigned to driver, etc.)
+        401: Unauthorized
+        500: Server error
+     """
+    # Get driver_id from token (set by @token_required decorator)
+     driver_id = request.driver_id
+    
+    # Get optional payment method from request body
+     data = request.get_json() or {}
+     payment_method = data.get("payment_method", "cash")
+    
+    # Validate payment method
+     valid_methods = ["cash", "card", "wallet", "online"]
+     if payment_method not in valid_methods:
+        return jsonify({
+            "ok": False,
+            "msg": f"Invalid payment method. Must be one of: {', '.join(valid_methods)}"
+        }), 400
+    
+    # Call transaction function
+     success, message, payment_id, fare = complete_ride_transaction(
+        driver_id, 
+        ride_id, 
+        payment_method
+     )
+     if success:
+        socketio.emit('ride_completed', {
+        'ride_id': ride_id,
+        'status': 'completed',
+        'fare': float(fare),
+        'payment_method': payment_method
+        }, room=f'ride_{ride_id}')
 
-     ok, msg = complete_ride_by_driver(driver_id, ride_id)
-     return jsonify({"ok": ok, "msg": msg}), (200 if ok else 400)
+     if not success:
+        return jsonify({
+            "ok": False, 
+            "msg": message
+        }), 400
+    
+     return jsonify({
+        "ok": True, 
+        "msg": message,
+        "ride_id": ride_id,
+        "payment_id": payment_id,
+        "fare": float(fare),
+        "payment_method": payment_method,
+        "status": "completed"
+     }), 200
+
+    # @app.post("/ride/<int:ride_id>/complete")
+    # @token_required(user_type="driver")
+    # def ride_complete(ride_id):
+    #  data = request.get_json()
+    #  driver_id = data.get("driver_id")
+
+    #  ok, msg = complete_ride_by_driver(driver_id, ride_id)
+    #  return jsonify({"ok": ok, "msg": msg}), (200 if ok else 400)
 
     # @app.get("/drivers/active")
     # def active_drivers():
@@ -366,6 +504,7 @@ def create_app():
     #     emit('book_result', {'success': ok, 'ride_id': ride_id, 'msg': msg})
 
     @app.post("/<int:driver_id>/<int:ride_id>/cancel_ride")
+    @token_required(user_type="driver")
     def cancel_ride(driver_id, ride_id):
     
 
@@ -378,6 +517,7 @@ def create_app():
  
     
     @app.post("/estimate_fare")
+    @token_required(user_type="users")
     def estimate_fare():
       data = request.get_json()
 
@@ -410,6 +550,7 @@ def create_app():
       })
     
     @app.post("/request_driver")
+    @token_required(user_type="user")
     def request_driver():
         data = request.get_json()
         ride_id = int(data["ride_id"])
@@ -439,6 +580,7 @@ def create_app():
         return jsonify(response), status
 
     @app.post("/create_ride_request")
+    @token_required(user_type="user")
     def create_ride_request():
      data = request.get_json()
 
@@ -515,6 +657,90 @@ def create_app():
 
      return jsonify(response), 201
     
+    #recommended drivers
+    @app.post("/get_recommended_drivers")
+    @token_required(user_type="user")
+    def get_recommended_drivers():
+     """
+    Get recommended active drivers near pickup location
+    Returns drivers sorted by distance from pickup point
+    """
+     data = request.get_json()
+    
+    # Get data from request
+     ride_id = data.get('ride_id')
+     pickup_lat = float(data.get('pickup_lat'))
+     pickup_lon = float(data.get('pickup_lon'))
+     max_distance_km = float(data.get('max_distance_km', 20))  # Default 20km radius
+    
+     if not pickup_lat or not pickup_lon:
+        return jsonify({
+            "ok": False,
+            "msg": "Pickup coordinates are required"
+        }), 400
+    
+    # SQL query to get active drivers with vehicle info and calculate distance
+     sql = text("""
+        SELECT 
+            d.driver_id,
+            d.name,
+            d.email,
+            d.license_no,
+            d.rating_avg,
+            d.discount,
+            d."Latitude" AS latitude,
+            d."Longitude" AS longitude,
+            v.vehicle_no,
+            v.type AS vehicle_type,
+           
+        FROM public.driver d
+        LEFT JOIN public.vehicle v ON d.driver_id = v.driver_id
+        WHERE d.is_active = TRUE
+     """)
+    
+     try:
+        with engine.begin() as conn:
+            rows = conn.execute(sql, {
+                "pickup_lat": pickup_lat,
+                "pickup_lon": pickup_lon,
+                "max_distance": max_distance_km
+            }).fetchall()
+        
+        # Format drivers data
+        drivers = []
+        for row in rows:
+            driver_data = {
+                'driver_id': row.driver_id,
+                'name': row.name,
+                'phone': row.email,  # Using email as phone for now
+                'rating': float(row.rating_avg) if row.rating_avg else 0.0,
+                'distance_km': round(float(row.distance_km), 2),
+                'vehicle_type': row.vehicle_type or 'Not specified',
+                'vehicle_number': row.vehicle_no or 'N/A',
+                'discount': float(row.discount) if row.discount else 0.0,
+                'latitude': float(row.latitude) if row.latitude else None,
+                'longitude': float(row.longitude) if row.longitude else None
+            }
+            drivers.append(driver_data)
+        
+        # If ride_id provided, optionally save recommendations to DB
+        print(drivers)
+        
+        return jsonify({
+            "ok": True,
+            "drivers": drivers,
+            "count": len(drivers),
+            "msg": f"Found {len(drivers)} available drivers"
+        }), 200
+    
+     except Exception as e:
+        print(f"Error fetching recommended drivers: {str(e)}")
+        return jsonify({
+            "ok": False,
+            "msg": "Failed to fetch drivers",
+            "error": str(e)
+        }), 500
+     
     @app.post("/check_weather")
     def check_weather():
         """
@@ -535,21 +761,140 @@ def create_app():
         })
     
 ##LIVE TRACKING FEATURE HANDLING
+
+    @socketio.on('connect')
+    def handle_connect():
+      """Handle client connection"""
+      print(f'Client connected: {request.sid}')
+      emit('connected', {'msg': 'Connected to server'})
+
+    @socketio.on('disconnect')
+    def handle_disconnect():
+        """Handle client disconnection"""
+        print(f'Client disconnected: {request.sid}')
+
     @socketio.on('join_ride')
     def join_ride(data):
+        """
+    Passenger joins a room to receive live driver location for this ride.
+    Expects: { "ride_id": 19 }
+        """
+        ride_id = data.get("ride_id")
+        if ride_id:
+          join_room(f"ride_{ride_id}")
+          emit("joined_room", {"msg": f"Joined ride {ride_id}"})
+          print(f"Passenger joined ride_{ride_id}")
+
+    @socketio.on('join_driver_room')
+    def handle_join_driver_room(data):
+        """
+    Driver joins their personal room to receive ride requests.
+    Expects: { "driver_id": 1 }
+    """
+        driver_id = data.get('driver_id')
+        if driver_id:
+            join_room(f'driver_{driver_id}')
+            emit('joined_driver_room', {'msg': f'Joined driver room {driver_id}'})
+            print(f'Driver {driver_id} joined their room')
+
+    @socketio.on('leave_ride')
+    def leave_ride(data):
+        """
+    Leave a ride room
+    Expects: { "ride_id": 19 }
+        """
+        ride_id = data.get("ride_id")
+        if ride_id:
+            leave_room(f"ride_{ride_id}")
+            emit("left_room", {"msg": f"Left ride {ride_id}"})
+            print(f"Left ride_{ride_id}")
+
+    @socketio.on('ride_request_sent')
+    def handle_ride_request_sent(data):    
       """
-     Passenger joins a room to receive live driver location for this ride.
-     Expects: { "ride_id": 19 }
-     """
-      ride_id = data.get("ride_id")
-      if ride_id:
-        join_room(f"ride_{ride_id}")
-        emit("joined_room", {"msg": f"Joined ride {ride_id}"})
+    Notify driver when a ride request is sent to them.
+    Called after user sends request via /request_driver endpoint.
+    Expects: { "ride_id": 19, "driver_id": 1 }
+      """
+      ride_id = data.get('ride_id')
+      driver_id = data.get('driver_id')
     
+      if ride_id and driver_id:
+        from models import Ride, User
+        ride = Ride.query.get(ride_id)
+        user = User.query.get(ride.user_id) if ride else None
+        
+        if ride:
+            # Emit to specific driver's room
+            socketio.emit('new_ride_request', {
+                'ride_id': ride_id,
+                'user_id': ride.user_id,
+                'user_name': user.name if user else 'User',
+                'pickup': ride.pickup,
+                'drop': ride.drop,
+                'pickup_lat': ride.pickup_latitude,
+                'pickup_lon': ride.pickup_longitude,
+                'drop_lat': ride.drop_latitude,
+                'drop_lon': ride.drop_longitude,
+                'fare': float(ride.fare),
+                'distance_km': float(ride.distance_km),
+                'duration_min': float(ride.duration_min),
+                'message': 'New ride request received!',
+                'timestamp': str(datetime.datetime.now())
+            }, room=f'driver_{driver_id}')
+            
+            print(f'Ride request {ride_id} notification sent to driver {driver_id}')
+
+    @socketio.on('driver_accept_ride_socket')
+    def handle_driver_accept_socket(data):    
+      """
+    Handle driver acceptance notification via socket.
+    This is called AFTER the driver calls the /driver/<id>/accept_ride endpoint.
+    Expects: { "ride_id": 19, "driver_id": 1, "driver_name": "Ahmed Khan" }
+     """
+      ride_id = data.get('ride_id')
+      driver_id = data.get('driver_id')
+      driver_name = data.get('driver_name')
+    
+      if ride_id and driver_id:
+        # This is already handled in the accept_ride endpoint
+        # Just log it here
+        print(f'Socket confirmation: Driver {driver_id} accepted ride {ride_id}')
+
+    @socketio.on('driver_reject_ride_socket')
+    def handle_driver_reject_socket(data):    
+     """
+    Handle driver rejection notification via socket.
+    This is called AFTER the driver calls the /driver/<id>/reject endpoint.
+    Expects: { "ride_id": 19, "driver_id": 1 }
+    """
+     ride_id = data.get('ride_id')
+     driver_id = data.get('driver_id')
+    
+     if ride_id and driver_id:
+        # This is already handled in the reject_ride endpoint
+        # Just log it here
+        print(f'Socket confirmation: Driver {driver_id} rejected ride {ride_id}')
+
+    @socketio.on('start_ride_socket')
+    def handle_start_ride_socket(data):
+     """
+    Notify passenger that driver has started the ride.
+    This is called AFTER the driver calls the /ride/<id>/start endpoint.
+    Expects: { "ride_id": 19, "driver_id": 1 }
+     """
+     ride_id = data.get('ride_id')
+     driver_id = data.get('driver_id')
+    
+     if ride_id and driver_id:
+        # Notify user in the ride room - this is already handled in start_ride_endpoint
+        print(f'Socket confirmation: Ride {ride_id} started by driver {driver_id}')
+
     @socketio.on('driver_location_update')
     def handle_driver_location(data):
       """
-    Driver sends live location updates.
+    Driver sends live location updates during active ride.
+    This should be called every few seconds while ride is in progress.
     Expects:
     {
         "driver_id": 1,
@@ -557,7 +902,7 @@ def create_app():
         "latitude": 24.8600,
         "longitude": 67.0015
     }
-      """
+        """
       driver_id = data.get("driver_id")
       ride_id = data.get("ride_id")
       lat = data.get("latitude")
@@ -567,21 +912,99 @@ def create_app():
         emit('location_update_response', {"ok": False, "msg": "Missing fields"})
         return
 
+    # Update location in database
       ok = update_driver_and_ride_location(driver_id, ride_id, lat, lon)
+    
       if ok:
+        # Confirm to driver
         emit('location_update_response', {"ok": True, "msg": "Location updated"})
-        # Broadcast to passengers in this ride's room only
-        emit('ride_location', {"lat": lat, "lon": lon}, room=f"ride_{ride_id}")
+        
+        # Broadcast to passenger in this ride's room
+        socketio.emit('ride_location', {
+            "lat": lat,
+            "lon": lon,
+            "timestamp": datetime.datetime.now().isoformat()
+        }, room=f"ride_{ride_id}")
+        
+        # Optional: Calculate and send ETA updates
+        from models import Ride
+        ride = Ride.query.get(ride_id)
+        if ride and ride.drop_latitude and ride.drop_longitude:
+            try:
+                # Calculate remaining distance
+                from math import radians, sin, cos, sqrt, atan2
+                R = 6371  # Earth's radius in km
+                
+                lat1, lon1 = radians(lat), radians(lon)
+                lat2, lon2 = radians(ride.drop_latitude), radians(ride.drop_longitude)
+                
+                dlat = lat2 - lat1
+                dlon = lon2 - lon1
+                
+                a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+                c = 2 * atan2(sqrt(a), sqrt(1-a))
+                distance_remaining = R * c
+                
+                # Estimate time (assuming 30 km/h average speed)
+                eta_minutes = int((distance_remaining / 30) * 60)
+                
+                # Send progress update
+                total_distance = ride.distance_km if ride.distance_km else 1
+                progress = max(0, min(100, ((total_distance - distance_remaining) / total_distance) * 100))
+                
+                socketio.emit('ride_progress', {
+                    "distance_remaining": round(distance_remaining, 2),
+                    "eta_minutes": eta_minutes,
+                    "progress": round(progress, 1)
+                }, room=f"ride_{ride_id}")
+                
+            except Exception as e:
+                print(f"Error calculating ETA: {e}")
       else:
         emit('location_update_response', {"ok": False, "msg": "Update failed"})
-    
-    @socketio.on('leave_ride')
-    def leave_ride(data):
-     ride_id = data.get("ride_id")
-     if ride_id:
-        leave_room(f"ride_{ride_id}")
-        emit("left_room", {"msg": f"Left ride {ride_id}"})
 
+    @socketio.on('complete_ride_socket')
+    def handle_complete_ride_socket(data):
+      """
+    Notify passenger that ride has been completed.
+    This is called AFTER the driver calls the /ride/<id>/complete endpoint.
+    Expects: { "ride_id": 19, "driver_id": 1 }
+        """
+      ride_id = data.get('ride_id')
+      driver_id = data.get('driver_id')
+    
+      if ride_id and driver_id:
+        # This is already handled in the ride_complete endpoint
+        print(f'Socket confirmation: Ride {ride_id} completed by driver {driver_id}')
+
+    @socketio.on('request_current_location')
+    def handle_request_current_location(data):
+        """
+    Passenger requests driver's current location.
+    Useful when passenger first joins the tracking page.
+    Expects: { "ride_id": 19 }
+        """
+        ride_id = data.get('ride_id')
+    
+        if ride_id:
+            from models import Ride
+            ride = Ride.query.get(ride_id)
+        
+            if ride and ride.current_latitude and ride.current_longitude:
+             emit('ride_location', {
+                "lat": ride.current_latitude,
+                "lon": ride.current_longitude,
+                "timestamp": datetime.datetime.now().isoformat()
+                })
+            else:
+             emit('location_error', {"msg": "Location not available yet"})
+
+    @socketio.on('ping')
+    def handle_ping(data):
+      """
+    Simple ping/pong for connection testing
+      """
+      emit('pong', {'msg': 'Connection active'})
   
     # @socketio.on("driver_location")
     # def ws_driver_location(data):
@@ -641,6 +1064,7 @@ def create_app():
     #  emit("ride_complete_ack", {"ride_id": ride_id, "msg": "Ride data saved"})
     
     @app.post("/ride/<int:ride_id>/feedback")
+    @token_required(user_type="user")
     def feedback_endpoint(ride_id):
      data = request.json
      user_id = data.get("user_id")
@@ -651,6 +1075,7 @@ def create_app():
      return jsonify({"ok": ok, "msg": msg})
     
     @app.get("/user/<int:user_id>/profile")
+    @token_required(user_type="user")
     def user_profile(user_id):
       """
     Returns user profile data.
@@ -661,6 +1086,7 @@ def create_app():
       return jsonify(ok=True, user=user)
     
     @app.get("/driver/<int:driver_id>/profile")
+    @token_required(user_type="driver")
     def driver_profile(driver_id):
      """
     Returns driver profile data.
@@ -670,6 +1096,93 @@ def create_app():
      if not ok:
         return jsonify(ok=False, msg="Driver not found"), 404
      return jsonify(ok=True, driver=driver)
+    
+    @app.get("/driver/<int:driver_id>/vehicle")
+    @token_required(user_type="driver")
+    def get_driver_vehicle(driver_id):
+     """
+    Get vehicle information for a driver
+     """
+     vehicle = get_vehicle_by_driver_id(driver_id)
+    
+     if not vehicle:
+        return jsonify(ok=False, msg="No vehicle found"), 404
+    
+     return jsonify(ok=True, vehicle=vehicle)
+    
+    @app.post("/driver/<int:driver_id>/vehicle")
+    @token_required(user_type="driver")
+    def add_driver_vehicle(driver_id):
+     """
+    Add vehicle for a driver
+     """
+     data = request.get_json()
+    
+    # Check if vehicle already exists
+     existing = get_vehicle_by_driver_id(driver_id)
+     if existing:
+        return jsonify(ok=False, msg="Vehicle already exists. Use PUT to update."), 400
+    
+     vehicle_data = {
+        "vehicle_no": data.get("vehicle_no"),
+        "type": data.get("type"),
+        "driver_id": driver_id
+      }
+    
+     ok, msg, vehicle = create_vehicle(vehicle_data)
+    
+     if not ok:
+        return jsonify(ok=False, msg=msg), 400
+    
+     return jsonify(ok=True, msg="Vehicle added successfully", vehicle=vehicle)
+    
+    @app.put("/driver/<int:driver_id>/vehicle")
+    @token_required(user_type="driver")
+    def update_driver_vehicle(driver_id):
+     """
+    Update vehicle information
+     """
+     data = request.get_json()
+    
+     vehicle_data = {
+        "vehicle_no": data.get("vehicle_no"),
+        "type": data.get("type")
+     }
+    
+     ok, msg, vehicle = update_vehicle(driver_id, vehicle_data)
+    
+     if not ok:
+        return jsonify(ok=False, msg=msg), 400
+    
+     return jsonify(ok=True, msg="Vehicle updated successfully", vehicle=vehicle)
+    
+    @app.put("/driver/<int:driver_id>/discount")
+    @token_required(user_type="driver")
+    def update_discount(driver_id):
+     """
+     Update driver's discount percentage
+     """
+     data = request.get_json()
+     discount = data.get("discount")
+    
+    # Validation
+     if discount is None:
+        return jsonify(ok=False, msg="Discount value is required"), 400
+    
+     try:
+        discount = float(discount)
+        if discount < 0 or discount > 100:
+            return jsonify(ok=False, msg="Discount must be between 0 and 100"), 400
+     except (ValueError, TypeError):
+        return jsonify(ok=False, msg="Invalid discount value"), 400
+    
+     ok, msg = update_driver_discount(driver_id, discount)
+    
+     if not ok:
+        return jsonify(ok=False, msg=msg), 400
+    
+     return jsonify(ok=True, msg=msg, discount=discount)
+    
 
     return app, socketio
     

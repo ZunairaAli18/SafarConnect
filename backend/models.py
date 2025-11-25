@@ -11,7 +11,7 @@ class Driver(db.Model):
     rating_avg  = db.Column(db.Float, default=0.0)
 
 class User(db.Model):
-    __tablename__ = 'user'
+    __tablename__ = 'User'
     user_id = db.Column(db.Integer, primary_key=True)
     name    = db.Column(db.String(50))
     email   = db.Column(db.String(50), nullable=False)
@@ -26,7 +26,7 @@ class Ride(db.Model):
     ride_date  = db.Column(db.Date)
     fare       = db.Column(db.Numeric(10,2))
     driver_id  = db.Column(db.Integer, db.ForeignKey('driver.driver_id'), nullable=True)
-    user_id    = db.Column(db.Integer, db.ForeignKey('user.user_id'),   nullable=False)
+    user_id    = db.Column(db.Integer, db.ForeignKey('User.user_id'),   nullable=False)
     pickup_latitude   = db.Column(db.Float)
     pickup_longitude  = db.Column(db.Float)
     drop_latitude     = db.Column(db.Float)
