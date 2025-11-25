@@ -43,6 +43,23 @@ interface WeatherDetails {
   severity?: string;
 }
 
+interface RideDetails {
+  ride_id: number;
+  user_id: number;
+  pickup: string;
+  drop: string;
+  pickup_latitude: number;
+  pickup_longitude: number;
+  drop_latitude: number;
+  drop_longitude: number;
+  fare: number;
+  distance_km: number;
+  duration_min: number;
+}
+interface SelectedDriver {
+  driver_id: number;
+  name: string;
+}
 export function RideConfirmationPage({ onBack, onRideAccepted, userToken, rideDetails }: RideConfirmationPageProps) {
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
   const [requestStatus, setRequestStatus] = useState<'idle' | 'pending' | 'accepted' | 'rejected'>('idle');
@@ -118,7 +135,7 @@ export function RideConfirmationPage({ onBack, onRideAccepted, userToken, rideDe
   const fetchRecommendedDrivers = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/get_recommended_drivers`, {
+      const response = await fetch(`${API_BASE_URL}/recommend_drivers`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

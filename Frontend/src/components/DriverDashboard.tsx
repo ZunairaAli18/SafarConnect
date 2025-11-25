@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapPin, Navigation, Clock, DollarSign, User, CheckCircle, XCircle, LogOut } from 'lucide-react';
 import { Button } from './ui/button';
@@ -25,45 +25,52 @@ interface DriverDashboardProps {
 }
 
 export function DriverDashboard({ onLogout, onBackToProfile, onAcceptRide }: DriverDashboardProps) {
-  // Mock pending ride requests for Pakistan cities
-  const [rideRequests, setRideRequests] = useState<RideRequest[]>([
-    {
-      id: 'ride_001',
-      riderName: 'Ahmad Khan',
-      pickup: 'Saddar, Karachi',
-      drop: 'Clifton Beach, Karachi',
-      pickupCoords: { lat: 24.8607, lon: 67.0011 },
-      dropCoords: { lat: 24.8030, lon: 67.0299 },
-      distance: 8.5,
-      fare: 575,
-      estimatedTime: 15,
-      timestamp: '2 mins ago'
-    },
-    {
-      id: 'ride_002',
-      riderName: 'Fatima Ali',
-      pickup: 'Blue Area, Islamabad',
-      drop: 'F-9 Park, Islamabad',
-      pickupCoords: { lat: 33.7094, lon: 73.0515 },
-      dropCoords: { lat: 33.7060, lon: 73.0500 },
-      distance: 5.2,
-      fare: 410,
-      estimatedTime: 12,
-      timestamp: '5 mins ago'
-    },
-    {
-      id: 'ride_003',
-      riderName: 'Hassan Raza',
-      pickup: 'Mall Road, Lahore',
-      drop: 'Gulberg, Lahore',
-      pickupCoords: { lat: 31.5497, lon: 74.3436 },
-      dropCoords: { lat: 31.5204, lon: 74.3587 },
-      distance: 6.8,
-      fare: 490,
-      estimatedTime: 14,
-      timestamp: '8 mins ago'
-    }
-  ]);
+  const [rideRequests, setRideRequests] = useState<RideRequest[]>([]);
+  const [totalRides, setTotalRides] = useState(0);
+  const [rating, setRating] = useState(0);
+
+  const driverId = localStorage.getItem('driverId'); // Driver ID from localStorage
+  const authToken = localStorage.getItem('authToken'); // JWT token from localStorage
+
+  useEffect(() => {
+    // Fetch driver stats
+    fetch(`http://127.0.0.1:5000/driver/${driverId}/stats`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok) {
+          setTotalRides(data.total_rides);
+          setRating(data.average_rating || 0);
+        }
+      })
+      .catch(console.error);
+
+    // Fetch pending rides
+    fetch(`http://127.0.0.1:5000/driver/${driverId}/get_requests`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${authToken}` },
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok && data.rides.length > 0) {
+          const mappedRides = data.rides.map((r: any) => ({
+            id: r.ride_id.toString(),
+            riderName: r.user_name,
+            pickup: r.pickup,
+            drop: r.drop,
+            pickupCoords: { lat: r.pickup_latitude, lon: r.pickup_longitude },
+            dropCoords: { lat: r.drop_latitude, lon: r.drop_longitude },
+            distance: r.distance_km,
+            fare: r.fare,
+            estimatedTime: r.duration_min,
+            timestamp: r.ride_date,
+          }));
+          setRideRequests(mappedRides);
+        }
+      })
+      .catch(console.error);
+  }, []);
 
   const handleAccept = (request: RideRequest) => {
     setRideRequests(rideRequests.filter(r => r.id !== request.id));
@@ -76,12 +83,8 @@ export function DriverDashboard({ onLogout, onBackToProfile, onAcceptRide }: Dri
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-700 via-slate-600 to-slate-700 p-4 overflow-y-auto">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-4xl mx-auto py-6"
-      >
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="w-full max-w-4xl mx-auto py-6">
+        
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <div>
@@ -99,11 +102,7 @@ export function DriverDashboard({ onLogout, onBackToProfile, onAcceptRide }: Dri
               <User className="w-4 h-4 mr-2" />
               Profile
             </Button>
-            <Button
-              variant="ghost"
-              onClick={onLogout}
-              className="text-slate-300 hover:text-white"
-            >
+            <Button variant="ghost" onClick={onLogout} className="text-slate-300 hover:text-white">
               <LogOut className="w-4 h-4 mr-2" />
               Logout
             </Button>
@@ -116,7 +115,7 @@ export function DriverDashboard({ onLogout, onBackToProfile, onAcceptRide }: Dri
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-slate-400 text-sm">Total Rides</p>
-                <p className="text-white text-2xl mt-1">347</p>
+                <p className="text-white text-2xl mt-1">{totalRides}</p>
               </div>
               <div className="bg-green-500/20 p-3 rounded-full">
                 <Navigation className="w-6 h-6 text-green-400" />
@@ -128,7 +127,7 @@ export function DriverDashboard({ onLogout, onBackToProfile, onAcceptRide }: Dri
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-slate-400 text-sm">Rating</p>
-                <p className="text-white text-2xl mt-1">4.8 ⭐</p>
+                <p className="text-white text-2xl mt-1">{rating} ⭐</p>
               </div>
               <div className="bg-yellow-500/20 p-3 rounded-full">
                 <User className="w-6 h-6 text-yellow-400" />
@@ -168,7 +167,6 @@ export function DriverDashboard({ onLogout, onBackToProfile, onAcceptRide }: Dri
                       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                         {/* Left Section - Ride Details */}
                         <div className="flex-1 space-y-4">
-                          {/* Rider Info */}
                           <div className="flex items-center space-x-3">
                             <div className="bg-blue-500/20 p-2 rounded-full">
                               <User className="w-5 h-5 text-blue-400" />
@@ -179,7 +177,6 @@ export function DriverDashboard({ onLogout, onBackToProfile, onAcceptRide }: Dri
                             </div>
                           </div>
 
-                          {/* Locations */}
                           <div className="space-y-3">
                             <div className="flex items-start space-x-3">
                               <MapPin className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" />
@@ -198,7 +195,6 @@ export function DriverDashboard({ onLogout, onBackToProfile, onAcceptRide }: Dri
                             </div>
                           </div>
 
-                          {/* Trip Stats */}
                           <div className="flex items-center space-x-4 pt-2">
                             <Badge variant="outline" className="border-slate-600 text-slate-300">
                               <Navigation className="w-3 h-3 mr-1" />
@@ -217,18 +213,11 @@ export function DriverDashboard({ onLogout, onBackToProfile, onAcceptRide }: Dri
 
                         {/* Right Section - Action Buttons */}
                         <div className="flex lg:flex-col gap-3 lg:w-32">
-                          <Button
-                            onClick={() => handleAccept(request)}
-                            className="flex-1 lg:w-full bg-green-600 hover:bg-green-700 text-white"
-                          >
+                          <Button onClick={() => handleAccept(request)} className="flex-1 lg:w-full bg-green-600 hover:bg-green-700 text-white">
                             <CheckCircle className="w-4 h-4 mr-2" />
                             Accept
                           </Button>
-                          <Button
-                            onClick={() => handleReject(request.id)}
-                            variant="outline"
-                            className="flex-1 lg:w-full border-red-500/50 text-red-400 hover:bg-red-500/10"
-                          >
+                          <Button onClick={() => handleReject(request.id)} variant="outline" className="flex-1 lg:w-full border-red-500/50 text-red-400 hover:bg-red-500/10">
                             <XCircle className="w-4 h-4 mr-2" />
                             Reject
                           </Button>

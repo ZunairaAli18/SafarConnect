@@ -1,4 +1,5 @@
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import func
 db = SQLAlchemy()
 
 class Driver(db.Model):
@@ -9,7 +10,18 @@ class Driver(db.Model):
     password    = db.Column(db.String(255), nullable=False)
     license_no  = db.Column(db.String(20), unique=True, nullable=False)
     rating_avg  = db.Column(db.Float, default=0.0)
+    is_active = db.Column(db.Boolean, default=False, nullable=False)
+    Longitude = db.Column(db.Float)     # EXACT column name from PostgreSQL
+    Latitude = db.Column(db.Float)
+    acceptance_probablity = db.Column(db.Float, default=0.5)
 
+    discount = db.Column(db.Float, default=0.0)
+
+    last_updated = db.Column(
+        db.DateTime,
+        server_default=func.now(),       # matches DEFAULT CURRENT_TIMESTAMP
+        onupdate=func.now()              # allows PostgreSQL trigger updates
+    )
 class User(db.Model):
     __tablename__ = 'User'
     user_id = db.Column(db.Integer, primary_key=True)

@@ -5,9 +5,11 @@ import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Progress } from './ui/progress';
+import { io } from "socket.io-client";
 
 interface LiveRideTrackingPageProps {
   rideDetails: {
+    ride_id: unknown;
     pickup: string;
     drop: string;
     distance: number;
@@ -152,77 +154,146 @@ export function LiveRideTrackingPage({ rideDetails, driver, onRideComplete }: Li
   }, [leafletLoaded, rideDetails, driver]);
 
   // Simulate SocketIO connection and real-time updates
-  useEffect(() => {
-    // Simulate joining ride room
-    console.log('Joining ride room:', `ride_${driver.id}_${Date.now()}`);
+  // useEffect(() => {
+  //   // Simulate joining ride room
+  //   console.log('Joining ride room:', `ride_${driver.id}_${Date.now()}`);
     
-    // Simulate receiving location updates
-    const simulateRide = () => {
-      let currentStep = 0;
-      const totalSteps = 50;
+  //   // Simulate receiving location updates
+  //   const simulateRide = () => {
+  //     let currentStep = 0;
+  //     const totalSteps = 50;
       
-      const interval = setInterval(() => {
-        currentStep++;
+  //     const interval = setInterval(() => {
+  //       currentStep++;
         
-        // Calculate interpolated position using parsed numbers
-        const t = currentStep / totalSteps;
-        const lat = pickupLat + (dropLat - pickupLat) * t;
-        const lon = pickupLon + (dropLon - pickupLon) * t;
+  //       // Calculate interpolated position using parsed numbers
+  //       const t = currentStep / totalSteps;
+  //       const lat = pickupLat + (dropLat - pickupLat) * t;
+  //       const lon = pickupLon + (dropLon - pickupLon) * t;
         
-        const newLocation: LocationUpdate = {
-          lat,
-          lon,
-          timestamp: Date.now()
-        };
+  //       const newLocation: LocationUpdate = {
+  //         lat,
+  //         lon,
+  //         timestamp: Date.now()
+  //       };
         
-        setDriverLocation(newLocation);
+  //       setDriverLocation(newLocation);
         
-        // Update progress
-        setProgress((t * 100));
+  //       // Update progress
+  //       setProgress((t * 100));
         
-        // Update distance and ETA
-        const remainingDistance = rideDetails.distance * (1 - t);
-        setDistanceRemaining(parseFloat(remainingDistance.toFixed(2)));
-        setEta(Math.max(1, Math.round(remainingDistance / rideDetails.distance * rideDetails.distance * 1.5)));
+  //       // Update distance and ETA
+  //       const remainingDistance = rideDetails.distance * (1 - t);
+  //       setDistanceRemaining(parseFloat(remainingDistance.toFixed(2)));
+  //       setEta(Math.max(1, Math.round(remainingDistance / rideDetails.distance * rideDetails.distance * 1.5)));
         
-        // Update ride status
-        if (currentStep === 5) {
-          setRideStatus('picked_up');
-        } else if (currentStep === 10) {
-          setRideStatus('in_transit');
-        } else if (currentStep >= totalSteps) {
-          setRideStatus('completed');
-          clearInterval(interval);
-          setTimeout(() => {
-            onRideComplete();
-          }, 2000);
-        }
+  //       // Update ride status
+  //       if (currentStep === 5) {
+  //         setRideStatus('picked_up');
+  //       } else if (currentStep === 10) {
+  //         setRideStatus('in_transit');
+  //       } else if (currentStep >= totalSteps) {
+  //         setRideStatus('completed');
+  //         clearInterval(interval);
+  //         setTimeout(() => {
+  //           onRideComplete();
+  //         }, 2000);
+  //       }
         
-        // Update driver marker on map
-        if (driverMarkerRef.current && leafletLoaded) {
-          // @ts-ignore
-          const L = window.L;
-          if (L) {
-            driverMarkerRef.current.setLatLng([lat, lon]);
+  //       // Update driver marker on map
+  //       if (driverMarkerRef.current && leafletLoaded) {
+  //         // @ts-ignore
+  //         const L = window.L;
+  //         if (L) {
+  //           driverMarkerRef.current.setLatLng([lat, lon]);
             
-            // Optionally pan map to follow driver
-            if (mapInstanceRef.current) {
-              mapInstanceRef.current.panTo([lat, lon]);
-            }
-          }
-        }
-      }, 1000); // Update every second
+  //           // Optionally pan map to follow driver
+  //           if (mapInstanceRef.current) {
+  //             mapInstanceRef.current.panTo([lat, lon]);
+  //           }
+  //         }
+  //       }
+  //     }, 1000); // Update every second
       
-      return interval;
-    };
+  //     return interval;
+  //   };
     
-    const interval = simulateRide();
+  //   const interval = simulateRide();
     
-    return () => {
-      clearInterval(interval);
-      console.log('Left ride room');
-    };
-  }, [driver.id, rideDetails, onRideComplete, leafletLoaded, pickupLat, pickupLon, dropLat, dropLon]);
+  //   return () => {
+  //     clearInterval(interval);
+  //     console.log('Left ride room');
+  //   };
+  // }, [driver.id, rideDetails, onRideComplete, leafletLoaded, pickupLat, pickupLon, dropLat, dropLon]);
+// Connect to backend Socket.IO and listen to ride updates
+useEffect(() => {
+  if (!leafletLoaded) return;
+
+  // Create socket connection
+  const socket = io("http://127.0.0.1:5000", {
+    transports: ["websocket"],
+  });
+
+  socketRef.current = socket;
+
+  // 1. On connect
+  socket.on("connect", () => {
+    console.log("Connected:", socket.id);
+
+    // Join passenger ride room
+    socket.emit("join_ride", { ride_id: rideDetails.ride_id });
+
+    // Request initial location
+    socket.emit("request_current_location", {
+      ride_id: rideDetails.ride_id,
+    });
+  });
+
+  // 2. Receive driver live location
+  socket.on("ride_location", (data) => {
+    const { lat, lon, timestamp } = data;
+    setDriverLocation({ lat, lon, timestamp: Date.now() });
+
+    if (driverMarkerRef.current && mapInstanceRef.current) {
+      driverMarkerRef.current.setLatLng([lat, lon]);
+      mapInstanceRef.current.panTo([lat, lon]);
+    }
+  });
+
+  // 3. Receive ride progress data
+  socket.on("ride_progress", (data) => {
+    const { distance_remaining, eta_minutes, progress } = data;
+
+    setDistanceRemaining(distance_remaining);
+    setEta(eta_minutes);
+    setProgress(progress);
+  });
+
+  // 4. Ride started
+  socket.on("ride_started", () => {
+    setRideStatus("in_transit");
+  });
+
+  // 5. Ride completed
+  socket.on("ride_completed", () => {
+    setRideStatus("completed");
+
+    setTimeout(() => {
+      onRideComplete();
+    }, 2000);
+  });
+
+  // 6. Any error
+  socket.on("location_error", (data) => {
+    console.warn("Location Error:", data.msg);
+  });
+
+  // Cleanup on unmount
+  return () => {
+    socket.emit("leave_ride", { ride_id: rideDetails.ride_id });
+    socket.disconnect();
+  };
+}, [leafletLoaded, rideDetails.ride_id]);
 
   const getStatusMessage = () => {
     switch (rideStatus) {

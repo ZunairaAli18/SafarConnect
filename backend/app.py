@@ -6,9 +6,10 @@ import datetime
 from functools import wraps
 from flask_socketio import SocketIO, emit,join_room,leave_room  # type: ignore
 from dotenv import load_dotenv
+from ml_recommender import DriverRecommender
 from models import db
 import redis
-from db import drivers_from_ride, get_non_active, book_ride_proc, login_user, signup_user,login_driver,signup_driver,assign_driver_to_ride,cancel_ride_by_driver,complete_ride_by_driver,update_user_location,update_driver_location,get_pending_rides,accept_ride_proc,reject_ride_proc,update_driver_and_ride_location,start_ride_db,add_feedback_db,get_user_profile,get_driver_profile,get_vehicle_by_driver_id,create_vehicle,update_vehicle,update_driver_discount,start_ride_transaction,complete_ride_transaction
+from db import drivers_from_ride, get_non_active, book_ride_proc, login_user, signup_user,login_driver,signup_driver,assign_driver_to_ride,cancel_ride_by_driver,complete_ride_by_driver,update_user_location,update_driver_location,get_pending_rides,accept_ride_proc,reject_ride_proc,update_driver_and_ride_location,start_ride_db,add_feedback_db,get_user_profile,get_driver_profile,get_vehicle_by_driver_id,create_vehicle,update_vehicle,update_driver_discount,start_ride_transaction,complete_ride_transaction,get_available_drivers
 from werkzeug.exceptions import Unauthorized
 from sqlalchemy.exc import IntegrityError
 from route_service import RouteService
@@ -16,6 +17,8 @@ from fare_calculator import FareCalculator
 from time import time
 from flask_cors import CORS
 from WeatherService import WeatherService
+import pandas as pd
+import numpy as np 
 
 load_dotenv()
 
@@ -129,6 +132,13 @@ def create_app():
     CORS(app, origins=["http://127.0.0.1:3000", "http://localhost:3000"])
     db.init_app(app)
     socketio = SocketIO(app, cors_allowed_origins='*')
+    # Initialize ML Recommender
+    recommender = DriverRecommender()
+    try:
+        recommender.load_model('models/driver_recommender.pkl')
+        print("✓ ML Model loaded")
+    except:
+        print("⚠ No model found. Train using /train_model")
 
     # ---- example blue-print / routes ----
     @app.get('/')
@@ -376,6 +386,7 @@ def create_app():
         print(f'Driver {driver_id} accepted ride {ride_id}')
     
      status_code = 200 if ok else 400
+     recommender.update_driver_acceptance_probability(db, driver_id)
      return jsonify(response), status_code
     
     @app.post("/driver/<int:driver_id>/reject")
@@ -400,6 +411,7 @@ def create_app():
         print(f'Driver {driver_id} rejected ride {ride_id}')
     
      status_code = 200 if ok else 400
+     recommender.update_driver_acceptance_probability(db, driver_id)
      return jsonify(ok=ok, msg=msg), status_code
     
     @app.post("/ride/<int:ride_id>/complete")
@@ -445,7 +457,7 @@ def create_app():
         payment_method
      )
      if success:
-        socketio.emit('ride_completed', {
+        socketio.emit('complete_ride_socket', {
         'ride_id': ride_id,
         'status': 'completed',
         'fare': float(fare),
@@ -576,7 +588,11 @@ def create_app():
         response, status = assign_driver_to_ride(ride_id, driver_id)
         if weather_details.get('severity') in ['moderate', 'mild']:
             response["weather_warning"] = alert_msg
-            
+        socketio.emit(
+        "ride_request_sent",
+        {"ride_id": ride_id, "driver_id": driver_id},
+        room=f"driver_{driver_id}"
+    )   
         return jsonify(response), status
 
     @app.post("/create_ride_request")
@@ -657,89 +673,7 @@ def create_app():
 
      return jsonify(response), 201
     
-    #recommended drivers
-    @app.post("/get_recommended_drivers")
-    @token_required(user_type="user")
-    def get_recommended_drivers():
-     """
-    Get recommended active drivers near pickup location
-    Returns drivers sorted by distance from pickup point
-    """
-     data = request.get_json()
-    
-    # Get data from request
-     ride_id = data.get('ride_id')
-     pickup_lat = float(data.get('pickup_lat'))
-     pickup_lon = float(data.get('pickup_lon'))
-     max_distance_km = float(data.get('max_distance_km', 20))  # Default 20km radius
-    
-     if not pickup_lat or not pickup_lon:
-        return jsonify({
-            "ok": False,
-            "msg": "Pickup coordinates are required"
-        }), 400
-    
-    # SQL query to get active drivers with vehicle info and calculate distance
-     sql = text("""
-        SELECT 
-            d.driver_id,
-            d.name,
-            d.email,
-            d.license_no,
-            d.rating_avg,
-            d.discount,
-            d."Latitude" AS latitude,
-            d."Longitude" AS longitude,
-            v.vehicle_no,
-            v.type AS vehicle_type,
-           
-        FROM public.driver d
-        LEFT JOIN public.vehicle v ON d.driver_id = v.driver_id
-        WHERE d.is_active = TRUE
-     """)
-    
-     try:
-        with engine.begin() as conn:
-            rows = conn.execute(sql, {
-                "pickup_lat": pickup_lat,
-                "pickup_lon": pickup_lon,
-                "max_distance": max_distance_km
-            }).fetchall()
-        
-        # Format drivers data
-        drivers = []
-        for row in rows:
-            driver_data = {
-                'driver_id': row.driver_id,
-                'name': row.name,
-                'phone': row.email,  # Using email as phone for now
-                'rating': float(row.rating_avg) if row.rating_avg else 0.0,
-                'distance_km': round(float(row.distance_km), 2),
-                'vehicle_type': row.vehicle_type or 'Not specified',
-                'vehicle_number': row.vehicle_no or 'N/A',
-                'discount': float(row.discount) if row.discount else 0.0,
-                'latitude': float(row.latitude) if row.latitude else None,
-                'longitude': float(row.longitude) if row.longitude else None
-            }
-            drivers.append(driver_data)
-        
-        # If ride_id provided, optionally save recommendations to DB
-        print(drivers)
-        
-        return jsonify({
-            "ok": True,
-            "drivers": drivers,
-            "count": len(drivers),
-            "msg": f"Found {len(drivers)} available drivers"
-        }), 200
-    
-     except Exception as e:
-        print(f"Error fetching recommended drivers: {str(e)}")
-        return jsonify({
-            "ok": False,
-            "msg": "Failed to fetch drivers",
-            "error": str(e)
-        }), 500
+   
      
     @app.post("/check_weather")
     def check_weather():
@@ -1005,7 +939,29 @@ def create_app():
     Simple ping/pong for connection testing
       """
       emit('pong', {'msg': 'Connection active'})
-  
+
+    from models import Driver,Ride  
+    @app.route("/driver/<int:driver_id>/stats", methods=["GET"])
+    @token_required(user_type="driver")
+    def driver_stats(driver_id):
+    # Fetch driver
+     driver = Driver.query.filter_by(driver_id=driver_id).first()
+     if not driver:
+        return jsonify({"ok": False, "msg": "Driver not found"}), 404
+
+    # Total completed rides
+     total_rides = Ride.query.filter_by(driver_id=driver_id, status='completed').count()
+
+    # Average rating (use stored rating_avg)
+     avg_rating = round(driver.rating_avg, 2) if driver.rating_avg else None
+
+     return jsonify({
+        "ok": True,
+        "driver_id": driver.driver_id,
+        "name": driver.name,
+        "total_rides": total_rides,
+        "average_rating": avg_rating
+     })
     # @socketio.on("driver_location")
     # def ws_driver_location(data):
     #   driver_id = data["driver_id"]
@@ -1183,7 +1139,180 @@ def create_app():
     
      return jsonify(ok=True, msg=msg, discount=discount)
     
+    @app.post("/train_model")
+    def train_model_endpoint():
+        """
+        Train the ML model from historical ride data
+        Call this endpoint once to train the model
 
+        Example: POST http://localhost:5000/train_model
+        """
+        try:
+            result = recommender.train_from_database(db)
+
+            if result['success']:
+                return jsonify({
+                    'ok': True,
+                    'msg': 'Model trained successfully',
+                    'details': result
+                }), 200
+            else:
+                return jsonify({
+                    'ok': False,
+                    'msg': result['message']
+                }), 400
+
+        except Exception as e:
+            return jsonify({
+                'ok': False,
+                'msg': f'Training failed: {str(e)}'
+            }), 500
+
+    @app.post("/recommend_drivers")
+    def recommend_drivers_endpoint():
+        """
+        Get recommended drivers for a ride request
+
+        Request Body:
+        {
+            "pickup_lat": 24.8607,
+            "pickup_lon": 67.0011,
+            "top_n": 5  (optional, default 5)
+        }
+
+        Returns:
+        {
+            "ok": true,
+            "recommended_drivers": [
+                {
+                    "driver_id": 1,
+                    "name": "Ahmed Khan",
+                    "rating_avg": 4.5,
+                    "distance_to_pickup": 2.3,
+                    "ml_acceptance_probability": 0.85,
+                    "recommendation_score": 0.78
+                },
+                ...
+            ],
+            "count": 5
+        }
+        """
+        try:
+            data = request.get_json()
+
+            # Validate input
+            if not data or 'pickup_lat' not in data or 'pickup_lon' not in data:
+                return jsonify({
+                    'ok': False,
+                    'msg': 'pickup_lat and pickup_lon are required'
+                }), 400
+
+            pickup_lat = float(data['pickup_lat'])
+            pickup_lon = float(data['pickup_lon'])
+            top_n = int(data.get('top_n', 5))
+
+            # Get available drivers from database
+            drivers_list = get_available_drivers()
+
+            if not drivers_list:
+                return jsonify({
+                    'ok': False,
+                    'msg': 'No available drivers found',
+                    'recommended_drivers': []
+                }), 200
+
+            # Convert to DataFrame for ML processing
+            drivers_df = pd.DataFrame(drivers_list)
+            
+            global DriverRecommender
+        
+            if not DriverRecommender.model:
+              print("⚠ Model not found — Training now...")
+              try:
+                DriverRecommender.train_model(drivers_df)  # Automatically train
+                print("✅ Model trained successfully!")
+              except Exception as train_err:
+                return jsonify({
+                    "ok": False,
+                    "msg": f"Model training failed automatically: {str(train_err)}"
+                }), 500
+            # Get recommendations from ML model
+            recommended = DriverRecommender.recommend_drivers(
+                pickup_lat,
+                pickup_lon,
+                drivers_df
+            )
+
+            # Return top N
+            top_recommendations = recommended[:top_n]
+
+            return jsonify({
+                'ok': True,
+                'recommended_drivers': top_recommendations,
+                'count': len(top_recommendations),
+                'msg': f'Found {len(top_recommendations)} recommended drivers'
+            }), 200
+
+        except Exception as e:
+            return jsonify({
+                'ok': False,
+                'msg': f'Recommendation failed: {str(e)}'
+            }), 500
+
+    @app.post("/update_acceptance_probability/<int:driver_id>")
+    def update_acceptance_endpoint(driver_id):
+        """
+        Update driver's acceptance probability after a ride decision
+        This should be called after a driver accepts or rejects a ride
+
+        Example: POST http://localhost:5000/update_acceptance_probability/1
+        """
+        try:
+            new_probability = recommender.update_driver_acceptance_probability(db, driver_id)
+
+            return jsonify({
+                'ok': True,
+                'driver_id': driver_id,
+                'new_acceptance_probability': round(new_probability, 3),
+                'msg': 'Acceptance probability updated'
+            }), 200
+
+        except Exception as e:
+            return jsonify({
+                'ok': False,
+                'msg': f'Update failed: {str(e)}'
+            }), 500
+
+    @app.get("/model_status")
+    def model_status_endpoint():
+        """
+        Check if ML model is trained and ready
+
+        Example: GET http://localhost:5000/model_status
+        """
+        try:
+            if recommender.model is None:
+                return jsonify({
+                    'ok': False,
+                    'model_trained': False,
+                    'msg': 'Model not trained. Use /train_model endpoint to train.'
+                }), 200
+
+            return jsonify({
+                'ok': True,
+                'model_trained': True,
+                'num_drivers_tracked': len(recommender.driver_stats),
+                'num_features': len(recommender.feature_names),
+                'features': recommender.feature_names,
+                'msg': 'Model is ready'
+            }), 200
+
+        except Exception as e:
+            return jsonify({
+                'ok': False,
+                'msg': str(e)
+            }), 500
+    
     return app, socketio
     
     

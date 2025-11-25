@@ -565,3 +565,30 @@ def start_ride_transaction(ride_id, driver_id):
         db.session.rollback()
         print(f"Error in start_ride_transaction: {e}")
         return False, f"Database error: {str(e)}"
+    
+
+def get_available_drivers():
+    """
+    Get all available drivers with their location and stats
+    Returns DataFrame-compatible list of dicts
+    """
+    sql = text("""
+        SELECT 
+            driver_id,
+            name,
+            email,
+            rating_avg,
+            "Latitude",
+            "Longitude",
+            acceptance_probablity,
+            is_active
+        FROM driver
+        WHERE is_active = TRUE
+        AND "Latitude" IS NOT NULL
+        AND "Longitude" IS NOT NULL
+    """)
+
+    with engine.begin() as conn:
+        rows = conn.execute(sql).fetchall()
+
+    return [dict(r._mapping) for r in rows]
