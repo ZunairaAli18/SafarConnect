@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+<head>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+<body>
+  <h3>Non-active drivers</h3>
+  <ul id="list"></ul>
+
+  <h3>Book ride</h3>
+  <input id="did" placeholder="driver id">
+  <button id="get">Refresh list</button>
+  <button id="book">Book selected</button>
+
+  <pre id="log"></pre>
+
+  <script>
+    const socket = io('ws://localhost:5000');
+
+    socket.on('connect', () => console.log('connected'));
+    socket.on('non_active_list', arr => {
+      document.getElementById('list').innerHTML =
+        arr.map(d => `<li>ID ${d.driver_id} | ${d.license_no}</li>`).join('');
+    });
+    socket.on('book_result', r => log(JSON.stringify(r)));
+
+    function log(x){ document.getElementById('log').textContent += x + '\n'; }
+
+    document.getElementById('get').onclick  = () => socket.emit('list_non_active');
+    document.getElementById('book').onclick = () => {
+      const did = +document.getElementById('did').value;
+      socket.emit('book_ride', {
+        user_id: 1,
+        driver_id: did,
+        pickup: 'Gulberg',
+        drop: 'DHA',
+        ride_date: '2025-10-12',
+        fare: 350
+      });
+    };
+
+    socket.emit('list_non_active');   // initial load
+  </script>
+</body>
+</html>

@@ -1,0 +1,131 @@
+<?xml version = '1.0' encoding = 'UTF-8'?>
+<Table class="oracle.dbtools.crest.model.design.relational.Table" directorySegmentName="seg_0" id="DE5C703F-1CD7-3506-D887-EF332D66707A" name="Payment">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:59:40 UTC</createdTime>
+<generatorID>73D21BAF-9865-300E-A64A-FE3193F4915B</generatorID>
+<ownerDesignName>erd</ownerDesignName>
+<allowColumnReorder>false</allowColumnReorder>
+<existDependencyGenerateInDDl>true</existDependencyGenerateInDDl>
+<parsed>true</parsed>
+<columns itemClass="oracle.dbtools.crest.model.design.relational.Column">
+<Column name="payment_id" id="9D02AC81-2293-D147-E608-3C6AC09A8132">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:59:40 UTC</createdTime>
+<generatorID>CCA671CB-FB1A-83F9-A8AA-355B1A41BDB7</generatorID>
+<ownerDesignName>erd</ownerDesignName>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT019</logicalDatatype>
+<dataTypePrecision>9</dataTypePrecision>
+<ownDataTypeParameters>,9,</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
+</Column>
+<Column name="amount" id="9FF38B74-4C7A-E656-28AF-8A42E92AF2E0">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:59:40 UTC</createdTime>
+<generatorID>48D383E7-23DB-4E17-1336-85AE73EB6C2D</generatorID>
+<ownerDesignName>erd</ownerDesignName>
+<nullsAllowed>true</nullsAllowed>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT019</logicalDatatype>
+<dataTypePrecision>10</dataTypePrecision>
+<ownDataTypeParameters>,10,</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
+</Column>
+<Column name="method" id="851EE80B-AE00-EF2B-DBFE-7364C27479A1">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:59:40 UTC</createdTime>
+<generatorID>493C35D1-E16F-FB9C-3D91-217E3ADF82CC</generatorID>
+<ownerDesignName>erd</ownerDesignName>
+<nullsAllowed>true</nullsAllowed>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT024</logicalDatatype>
+<dataTypeSize>20</dataTypeSize>
+<ownDataTypeParameters>20,,</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
+</Column>
+<Column name="status" id="F8FB6D6B-C250-B1D7-8283-F1BA540CF3C8">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:59:40 UTC</createdTime>
+<generatorID>3FD4617D-8A68-BD9B-6D95-271697380FBB</generatorID>
+<ownerDesignName>erd</ownerDesignName>
+<nullsAllowed>true</nullsAllowed>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT024</logicalDatatype>
+<dataTypeSize>15</dataTypeSize>
+<ownDataTypeParameters>15,,</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
+</Column>
+<Column name="Ride_ride_id" id="811D0B14-BD28-6F16-8AD0-9CA33B8D0650">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:59:40 UTC</createdTime>
+<generatorID>D1A38936-4A52-BF11-48C8-73C1DC3D744F</generatorID>
+<ownerDesignName>erd</ownerDesignName>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT019</logicalDatatype>
+<dataTypePrecision>9</dataTypePrecision>
+<ownDataTypeParameters>,,</ownDataTypeParameters>
+<previousColumn>false</previousColumn>
+<autoIncrementCycle>false</autoIncrementCycle>
+<associations>
+<colAssociation fkAssociation="56E38A7B-AAE0-0A39-D1B9-D6604EE08D4A" referredColumn="8A2F2181-9AF3-2448-E557-29B94503B204"/>
+</associations>
+</Column>
+</columns>
+<indexes itemClass="oracle.dbtools.crest.model.design.relational.Index">
+<ind_PK_UK id="DD7AF9D6-0A79-304C-C98E-A87112169C15" name="Payment_PK">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:59:40 UTC</createdTime>
+<generatorID>ACB406CB-03CB-7DCB-D029-0EDB3B875261</generatorID>
+<ownerDesignName>erd</ownerDesignName>
+<pk>true</pk>
+<indexState>Primary Constraint</indexState>
+<isSurrogateKey>false</isSurrogateKey>
+<indexColumnUsage>
+<colUsage columnID="9D02AC81-2293-D147-E608-3C6AC09A8132"/>
+</indexColumnUsage>
+</ind_PK_UK>
+<ind_PK_UK id="0BF982EF-51CC-02BF-3E3E-9D63C1CC9245" name="Payment__IDX">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:59:40 UTC</createdTime>
+<ownerDesignName>erd</ownerDesignName>
+<indexState>Unique Plain Index</indexState>
+<isSurrogateKey>false</isSurrogateKey>
+<relationGeneratorID>A73E41C1-9B46-95C2-0BFC-F1ABF0FF635E</relationGeneratorID>
+<indexColumnUsage>
+<colUsage columnID="811D0B14-BD28-6F16-8AD0-9CA33B8D0650"/>
+</indexColumnUsage>
+</ind_PK_UK>
+<ind_PK_UK id="32592A01-A06B-0E73-A493-044BF193AE3D" name="Payment_Ride_FK">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:59:40 UTC</createdTime>
+<generatorID>A73E41C1-9B46-95C2-0BFC-F1ABF0FF635E</generatorID>
+<ownerDesignName>erd</ownerDesignName>
+<indexState>Foreign Key</indexState>
+<isSurrogateKey>false</isSurrogateKey>
+<indexColumnUsage>
+<colUsage columnID="811D0B14-BD28-6F16-8AD0-9CA33B8D0650"/>
+</indexColumnUsage>
+</ind_PK_UK>
+</indexes>
+<tableCheckConstraints itemClass="oracle.dbtools.crest.model.design.constraint.TableLevelConstraint">
+<tableCheckConstraint name="chk_payment_status" directorySegmentName="seg_0" id="229008FE-07BC-8E71-0713-D0BC4BFBB17C">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 17:51:10 UTC</createdTime>
+<ownerDesignName>erd</ownerDesignName>
+<rule><![CDATA[status IN ('Pending', 'Completed', 'Failed')
+]]></rule>
+</tableCheckConstraint>
+<tableCheckConstraint name="chk_payment_method" directorySegmentName="seg_0" id="63601D6D-4540-20FA-A312-1CE4A742D9A5">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 17:52:11 UTC</createdTime>
+<ownerDesignName>erd</ownerDesignName>
+<rule><![CDATA[method IN ('Cash', 'Credit Card', 'Debit Card')
+]]></rule>
+</tableCheckConstraint>
+</tableCheckConstraints>
+</Table>

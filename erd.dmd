@@ -1,0 +1,8 @@
+<?xml version = '1.0' encoding = 'UTF-8'?>
+<OSDM_Design class="oracle.dbtools.crest.model.design.Design" name="erd" id="26646EA9-3902-CD07-85E5-F42296102A5E" version="3.5">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:04:47 UTC</createdTime>
+<ownerDesignName>erd</ownerDesignName>
+<capitalNames>false</capitalNames>
+<designId>26646EA9-3902-CD07-85E5-F42296102A5E</designId>
+</OSDM_Design>

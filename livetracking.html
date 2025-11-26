@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Ride Live Tracking Test</title>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    section { margin-bottom: 40px; }
+    label { display: block; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Live Ride Tracking Test</h1>
+
+  <!-- Passenger Section -->
+  <section>
+    <h2>Passenger</h2>
+    <label>Ride ID: <input type="number" id="passenger_ride_id" value="19"></label>
+    <button onclick="joinRide()">Join Ride</button>
+    <button onclick="leaveRide()">Leave Ride</button>
+    <h3>Driver Location:</h3>
+    <p id="driver_location">Waiting for updates...</p>
+  </section>
+
+  <!-- Driver Section -->
+  <section>
+    <h2>Driver</h2>
+    <label>Driver ID: <input type="number" id="driver_id" value="1"></label>
+    <label>Ride ID: <input type="number" id="driver_ride_id" value="19"></label>
+    <label>Latitude: <input type="number" step="0.0001" id="driver_lat" value="24.8600"></label>
+    <label>Longitude: <input type="number" step="0.0001" id="driver_lon" value="67.0015"></label>
+    <button onclick="sendDriverLocation()">Send Location</button>
+    <p id="driver_status"></p>
+  </section>
+
+  <script>
+    const socket = io("http://localhost:5000"); // Change port if needed
+
+    // --- Passenger functions ---
+    function joinRide() {
+      const ride_id = parseInt(document.getElementById("passenger_ride_id").value);
+      socket.emit("join_ride", { ride_id });
+    }
+
+    function leaveRide() {
+      const ride_id = parseInt(document.getElementById("passenger_ride_id").value);
+      socket.emit("leave_ride", { ride_id });
+      document.getElementById("driver_location").innerText = "Left ride room.";
+    }
+
+    // Listen for joined/left confirmation
+    socket.on("joined_room", data => alert(data.msg));
+    socket.on("left_room", data => alert(data.msg));
+
+    // Listen for driver location updates
+    socket.on("ride_location", data => {
+      document.getElementById("driver_location").innerText = 
+        `Lat: ${data.lat}, Lon: ${data.lon}`;
+    });
+
+    // --- Driver functions ---
+    function sendDriverLocation() {
+      const driver_id = parseInt(document.getElementById("driver_id").value);
+      const ride_id = parseInt(document.getElementById("driver_ride_id").value);
+      const lat = parseFloat(document.getElementById("driver_lat").value);
+      const lon = parseFloat(document.getElementById("driver_lon").value);
+
+      socket.emit("driver_location_update", {
+        driver_id,
+        ride_id,
+        latitude: lat,
+        longitude: lon
+      });
+    }
+
+    socket.on("location_update_response", data => {
+      document.getElementById("driver_status").innerText = 
+        data.ok ? "Location updated!" : `Error: ${data.msg}`;
+    });
+  </script>
+</body>
+</html>

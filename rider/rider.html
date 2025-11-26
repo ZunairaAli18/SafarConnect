@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Passenger Live Ride Tracking</title>
+
+  <!-- Leaflet CSS + JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Socket.IO -->
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
+  <style>
+    #map {
+      width: 100%;
+      height: 500px;
+      border: 2px solid #333;
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Passenger Live Ride Tracking</h1>
+
+  <label>Ride ID:
+    <input type="number" id="ride_id" value="19">
+  </label>
+
+  <button onclick="joinRide()">Join Ride</button>
+  <button onclick="leaveRide()">Leave Ride</button>
+
+  <div id="map"></div>
+
+  <script>
+
+    const socket = io("http://localhost:6000");
+
+    let map;
+    let driverMarker;
+    let routeLine;
+    let routeCoords = [];
+
+    // These should come from your backend in real app
+    const pickup = [24.8600, 67.0015]; // Karachi example
+    const drop = [24.8730, 67.0300];
+
+    function initMap() {
+      map = L.map('map').setView(pickup, 13);
+
+      // OSM Tiles
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+      }).addTo(map);
+
+      // Pickup marker (green)
+      L.marker(pickup, {
+        title: "Pickup",
+        icon: L.icon({
+          iconUrl: "https://maps.google.com/mapfiles/ms/icons/green-dot.png",
+          iconSize: [32, 32]
+        })
+      }).addTo(map).bindPopup("Pickup Location");
+
+      // Drop marker (red)
+      L.marker(drop, {
+        title: "Drop",
+        icon: L.icon({
+          iconUrl: "https://maps.google.com/mapfiles/ms/icons/red-dot.png",
+          iconSize: [32, 32]
+        })
+      }).addTo(map).bindPopup("Drop Location");
+    }
+
+    initMap();
+
+    function joinRide() {
+      const ride_id = parseInt(document.getElementById("ride_id").value);
+      socket.emit("join_ride", { ride_id });
+      alert("Joined ride room " + ride_id);
+    }
+
+    function leaveRide() {
+      const ride_id = parseInt(document.getElementById("ride_id").value);
+      socket.emit("leave_ride", { ride_id });
+
+      if (driverMarker) driverMarker.remove();
+      if (routeLine) routeLine.remove();
+
+      routeCoords = [];
+      alert("Left ride room " + ride_id);
+    }
+
+    // Receive live driver location
+    socket.on("ride_location", data => {
+      const pos = [data.latitude, data.longitude];
+
+      // Very visible car marker
+      if (!driverMarker) {
+        driverMarker = L.marker(pos, {
+          title: "Driver",
+          icon: L.icon({
+            iconUrl: "https://cdn-icons-png.flaticon.com/512/743/743131.png",
+            iconSize: [100, 100],
+            iconAnchor: [22, 22]
+          })
+        })
+        .addTo(map)
+        .bindPopup("Driver is here");
+      } else {
+        driverMarker.setLatLng(pos);
+      }
+
+      // Add point to the route
+      routeCoords.push(pos);
+
+      // Draw or update route line
+      if (!routeLine) {
+        routeLine = L.polyline(routeCoords, {
+          color: "black",
+          weight: 10
+        }).addTo(map);
+      } else {
+        routeLine.setLatLngs(routeCoords);
+      }
+
+      // Focus map on driver
+      map.setView(pos, 15);
+
+    });
+
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Driver Live Location Sender</title>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+
+  <h1>Driver Live GPS Sender</h1>
+
+  <label>Driver ID:
+    <input type="number" id="driver_id" value="1">
+  </label>
+
+  <label>Ride ID:
+    <input type="number" id="ride_id" value="19">
+  </label>
+
+  <script>
+
+    const socket = io("http://localhost:5000");
+
+    function startSendingLocation() {
+      const driver_id = parseInt(document.getElementById("driver_id").value);
+      const ride_id = parseInt(document.getElementById("ride_id").value);
+
+      if (!navigator.geolocation) {
+        alert("Geolocation NOT supported.");
+        return;
+      }
+
+      navigator.geolocation.watchPosition(
+        pos => {
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+
+          console.log("Sending:", lat, lon);
+
+          socket.emit("driver_location_update", {
+            driver_id,
+            ride_id,
+            latitude: lat,
+            longitude: lon
+          });
+        },
+        err => console.error("GPS Error", err),
+        { enableHighAccuracy: true }
+      );
+    }
+
+    startSendingLocation();
+
+    socket.on("location_update_response", msg => {
+      console.log(msg);
+    });
+
+  </script>
+
+</body>
+</html>

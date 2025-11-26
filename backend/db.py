@@ -1,0 +1,594 @@
+from sqlalchemy import create_engine, text
+import os
+from dotenv import load_dotenv
+from werkzeug.exceptions import Unauthorized
+from models import Ride,db
+
+load_dotenv()
+DATABASE_URL = os.environ["DATABASE_URL"]   # set in .env
+engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_size=5)
+
+def update_driver_location(driver_id: int, lat: float, lon: float):
+    """
+    Updates a driver's current latitude and longitude in the database.
+    Returns (ok, message)
+    """
+    sql = text("""
+        UPDATE public.driver
+        SET "Latitude" = :lat,
+            "Longitude" = :lon,
+            last_updated = NOW()
+        WHERE driver_id = :did
+        RETURNING driver_id;
+    """)
+    with engine.begin() as conn:
+        row = conn.execute(sql, {"lat": lat, "lon": lon, "did": driver_id}).fetchone()
+
+    if row:
+        return True, f"Driver {driver_id}'s location updated successfully."
+    return False, f"Driver {driver_id} not found."
+
+def update_user_location(user_id: int, lat: float, lon: float):
+    """
+    Updates the user's current latitude/longitude and refreshes last_updated timestamp.
+    Returns (ok, message)
+    """
+    sql = text("""
+        UPDATE public."User"
+        SET current_latitude = :lat,
+            current_longitude = :lon,
+            last_updated = NOW()
+        WHERE user_id = :uid
+        RETURNING user_id;
+    """)
+    with engine.begin() as conn:
+        row = conn.execute(sql, {"lat": lat, "lon": lon, "uid": user_id}).fetchone()
+
+    if row:
+        return True, f"User {user_id}'s location updated successfully."
+    return False, f"User {user_id} not found."
+
+def complete_ride_transaction(driver_id: int, ride_id: int, payment_method: str = 'cash'):
+    """
+    Call the SQL transaction to complete a ride.
+    
+    Args:
+        driver_id: ID of the driver completing the ride
+        ride_id: ID of the ride to complete
+        payment_method: Payment method (default: 'cash')
+        
+    Returns:
+        tuple: (success: bool, message: str, payment_id: int, fare: float)
+    """
+    from models import db
+    from sqlalchemy import text
+    
+    try:
+        # Call the stored procedure
+        result = db.session.execute(
+            text("""
+            SELECT success, message, payment_id, final_fare 
+            FROM complete_ride_transaction(:driver_id, :ride_id, :payment_method)
+            """),
+            {
+                "driver_id": driver_id, 
+                "ride_id": ride_id,
+                "payment_method": payment_method
+            }
+        )
+        
+        row = result.fetchone()
+        
+        if row:
+            success = row[0]
+            message = row[1]
+            payment_id = row[2]
+            final_fare = float(row[3]) if row[3] else None
+            
+            # Commit if successful
+            if success:
+                db.session.commit()
+            else:
+                db.session.rollback()
+                
+            return success, message, payment_id, final_fare
+        else:
+            db.session.rollback()
+            return False, "No response from database", None, None
+            
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in complete_ride_transaction: {e}")
+        return False, f"Database error: {str(e)}", None, None
+    
+def complete_ride_by_driver(driver_id: int, ride_id: int):
+    """
+    Marks a ride as completed by the driver and sets driver active again.
+    Returns (ok, message)
+    """
+    with engine.begin() as conn:
+        # 1️⃣ Update ride status
+        complete_sql = text("""
+            UPDATE ride
+            SET status = 'completed'
+            WHERE ride_id = :r AND driver_id = :d AND status = 'in_progress'
+            RETURNING ride_id;
+        """)
+        row = conn.execute(complete_sql, {"r": ride_id, "d": driver_id}).fetchone()
+
+        if not row:
+            return False, "Ride not found or driver not authorized"
+
+        # 2️⃣ Mark driver active again
+        activate_sql = text("""
+            UPDATE driver
+            SET is_active = TRUE
+            WHERE driver_id = :d;
+        """)
+        conn.execute(activate_sql, {"d": driver_id})
+
+    return True, f"Ride {ride_id} marked as completed. Driver {driver_id} is now active again"
+
+def cancel_ride_by_driver(driver_id: int, ride_id: int):
+    """
+    Cancels a ride if it belongs to the given driver.
+    Also marks the driver as active again.
+    Returns (ok, message)
+    """
+    with engine.begin() as conn:
+        #  Cancel the ride
+        cancel_sql = text("""
+            UPDATE ride
+            SET status = 'cancelled'
+            WHERE ride_id = :r AND driver_id = :d
+            RETURNING ride_id;
+        """)
+        row = conn.execute(cancel_sql, {"r": ride_id, "d": driver_id}).fetchone()
+
+        if not row:
+            return False, "Ride not found or driver not authorized"
+
+        # 2️⃣ Mark driver active again
+        activate_sql = text("""
+            UPDATE driver
+            SET is_active = TRUE
+            WHERE driver_id = :d;
+        """)
+        conn.execute(activate_sql, {"d": driver_id})
+
+    return True, f"Ride {ride_id} cancelled successfully by driver {driver_id} (driver now active)"
+
+
+def assign_driver_to_ride(ride_id, driver_id):
+    """Assign a driver to the ride and mark it as pending."""
+    ride = Ride.query.get(ride_id)
+    if not ride:
+        return {"ok": False, "msg": "Ride not found"}, 404
+
+    # Update driver and status
+    ride.driver_id = driver_id
+    ride.status = "pending"
+    db.session.commit()
+
+    return {
+        "ok": True,
+        "msg": f"Driver {driver_id} assigned to ride {ride_id} with status 'pending'."
+    }, 200
+
+def drivers_from_ride():
+    sql = text("SELECT * FROM drivers_from_ride()")
+    with engine.begin() as conn:          # engine is a real object here
+        rows = conn.execute(sql).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+def get_non_active():
+    sql = text("SELECT * FROM get_non_active_drivers()")
+    with engine.begin() as conn:
+        rows = conn.execute(sql).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+def book_ride_proc(uid, did, pickup, drop, date, fare):
+    sql = text("SELECT * FROM book_ride(:u,:d,:p,:dr,:dt,:f)")
+    params = dict(u=uid, d=did, p=pickup, dr=drop, dt=date, f=fare)
+    with engine.begin() as conn:
+        ok, rid, msg = conn.execute(sql, params).fetchone()
+    return ok, rid, msg
+
+def login_user(email: str, password: str):
+    """
+    Returns (user_dict or None, message, success_bool).
+    Mirrors the logic of your original stored procedure.
+    """
+    sql = text("""
+        SELECT u.user_id,
+               u.name,
+               u.email,
+               u.phone,
+               u.type
+        FROM public."User" u
+        WHERE u.email = :email
+          AND u.password = crypt(:pwd, u.password)
+        LIMIT 1
+    """)
+    with engine.begin() as conn:
+        row = conn.execute(sql, {"email": email, "pwd": password}).fetchone()
+
+    if row:                         # login succeeded
+        return dict(row._mapping), "Login successful", True
+    else:                           # no match
+        return None, "Invalid email or password", False
+    
+# ---------- db.py ----------
+from sqlalchemy.exc import IntegrityError   # add this at top (used in route)
+def signup_user(name: str, email: str, password: str, phone: str, utype: str):
+    sql = text("""
+        SELECT user_id, name, email, phone, type, msg, ok
+        FROM signup_user(:n, :e, :p, :ph, :t);
+    """)
+    params = dict(n=name, e=email, p=password, ph=phone, t=utype)
+    with engine.begin() as conn:
+        row = conn.execute(sql, params).fetchone()
+
+    print("row from DB ->", row)          # keep while debugging
+    if row and row.ok:                    # ok comes from the procedure now
+        return dict(row._mapping), row.msg, True
+    return None, row.msg if row else "Unknown error", False
+
+def signup_driver(name: str, email: str, password: str, license_no: str):
+    sql = text("""
+        SELECT * FROM signup_driver(:p_name, :p_email, :p_password, :p_license_no)
+    """)
+    params = dict(p_name=name, p_email=email, p_password=password, p_license_no=license_no)
+    with engine.begin() as conn:
+        row = conn.execute(sql, params).fetchone()
+    if row and row.driver_id is not None:
+        return dict(row._mapping), row.message, True
+    return None, row.message if row else "Signup failed", False
+
+
+
+
+# ---------- DRIVER LOGIN HELPER ----------
+def login_driver(email: str, password: str):
+    """
+    Calls the login_driver stored procedure in the database.
+    Verifies hashed password in the DB.
+    Returns: (driver_dict, message, ok)
+    """
+    sql = text("""
+        SELECT driver_id, name, email, license_no, message AS msg, TRUE AS ok
+        FROM login_driver(:p_email, :p_password)
+    """)
+    params = dict(p_email=email, p_password=password)
+    
+    with engine.begin() as conn:
+        row = conn.execute(sql, params).fetchone()
+    
+    if row:
+        return dict(row._mapping), row.msg, True
+    return None, "Invalid email or password", False
+
+def get_pending_rides(driver_id: int):
+    """
+    Calls the stored procedure get_pending_rides to fetch pending rides for a driver.
+    Returns a list of ride dictionaries.
+    """
+    sql = text("SELECT * FROM get_pending_rides(:driver_id)")
+    with engine.begin() as conn:
+        rows = conn.execute(sql, {"driver_id": driver_id}).fetchall()
+
+    # Convert SQLAlchemy Row objects to dictionaries
+    return [dict(r._mapping) for r in rows]
+
+def accept_ride_proc(driver_id: int, ride_id: int):
+    """
+    Calls the accept_ride stored procedure.
+    Returns (ok, msg)
+    """
+    sql = text("SELECT * FROM accept_ride(:driver_id, :ride_id)")
+    with engine.begin() as conn:
+        row = conn.execute(sql, {"driver_id": driver_id, "ride_id": ride_id}).fetchone()
+
+    if row:
+        return row.ok, row.msg
+    return False, "Unknown error occurred"
+
+
+def reject_ride_proc(driver_id: int, ride_id: int):
+    """
+    Calls the reject_ride stored procedure.
+    Returns (ok, msg)
+    """
+    sql = text("SELECT * FROM reject_ride(:driver_id, :ride_id)")
+    with engine.begin() as conn:
+        row = conn.execute(sql, {"driver_id": driver_id, "ride_id": ride_id}).fetchone()
+
+    if row:
+        return row.ok, row.msg
+    return False, "Unknown error occurred"
+
+
+def update_driver_and_ride_location(driver_id: int, ride_id: int, lat: float, lon: float):
+    """
+    Updates driver's location and the ride's current location in DB.
+    """
+    with engine.begin() as conn:
+        # Update driver
+        conn.execute(
+            text("""
+                UPDATE driver
+                SET "Latitude" = :lat,
+                    "Longitude" = :lon,
+                    last_updated = NOW()
+                WHERE driver_id = :driver_id
+            """),
+            {"lat": lat, "lon": lon, "driver_id": driver_id}
+        )
+
+        # Update active ride location
+        conn.execute(
+            text("""
+                UPDATE ride
+                SET current_latitude = :lat,
+                    current_longitude = :lon,
+                    last_route_update = NOW()
+                WHERE ride_id = :ride_id
+            """),
+            {"lat": lat, "lon": lon, "ride_id": ride_id}
+        )
+
+    return True
+
+def start_ride_db(ride_id: int):
+    sql = text("SELECT start_ride(:rid) AS msg;")
+
+    with engine.begin() as conn:
+        result = conn.execute(sql, {"rid": ride_id}).fetchone()
+        if result:
+            return True, result.msg
+        return False, "Database error"
+
+def add_feedback_db(ride_id: int, user_id: int, rating: int, comment: str):
+    sql = text("SELECT add_ride_feedback(:ride_id, :user_id, :rating, :comment) AS msg;")
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(sql, {
+                "ride_id": ride_id,
+                "user_id": user_id,
+                "rating": rating,
+                "comment": comment
+            }).fetchone()
+        return True, result[0]
+    except Exception as e:
+        return False, str(e)
+
+def get_user_profile(user_id: int):
+    """
+    Fetch a user's profile from the database.
+    Returns (user_dict, ok)
+    """
+    sql = text("SELECT * FROM public.\"User\" WHERE user_id = :user_id")
+    with engine.begin() as conn:
+        row = conn.execute(sql, {"user_id": user_id}).fetchone()
+    
+    if row:
+        return dict(row._mapping), True
+    return None, False
+
+def get_driver_profile(driver_id: int):
+    """
+    Fetch a driver's profile from the database.
+    Returns (driver_dict, ok)
+    """
+    sql = text("SELECT driver_id, name, email, license_no, rating_avg, is_active, \"Longitude\", \"Latitude\", acceptance_probablity, discount, last_updated FROM public.driver WHERE driver_id = :driver_id")
+    with engine.begin() as conn:
+        row = conn.execute(sql, {"driver_id": driver_id}).fetchone()
+    
+    if row:
+        return dict(row._mapping), True
+    return None, False
+
+def get_vehicle_by_driver_id(driver_id: int):
+    """
+    Get vehicle information for a specific driver
+    
+    Args:
+        driver_id (int): The ID of the driver
+        
+    Returns:
+        dict: Vehicle information or None if not found
+    """
+    sql = text("""
+        SELECT 
+            vehicle_id,
+            vehicle_no,
+            type,
+            driver_id
+        FROM public.vehicle
+        WHERE driver_id = :driver_id
+    """)
+    
+    with engine.begin() as conn:
+        row = conn.execute(sql, {"driver_id": driver_id}).fetchone()
+    
+    if row:
+        return dict(row._mapping)
+    
+    return None
+
+def create_vehicle(vehicle_data: dict):
+    """
+    Create a new vehicle for a driver
+    
+    Args:
+        vehicle_data (dict): Dictionary containing vehicle_no, type, and driver_id
+        
+    Returns:
+        tuple: (ok: bool, msg: str, vehicle: dict or None)
+    """
+    sql = text("""
+        INSERT INTO public.vehicle (vehicle_no, type, driver_id)
+        VALUES (:vehicle_no, :type, :driver_id)
+        RETURNING vehicle_id, vehicle_no, type, driver_id
+    """)
+    
+    try:
+        with engine.begin() as conn:
+            row = conn.execute(sql, {
+                "vehicle_no": vehicle_data.get("vehicle_no"),
+                "type": vehicle_data.get("type"),
+                "driver_id": vehicle_data.get("driver_id")
+            }).fetchone()
+        
+        if row:
+            vehicle = dict(row._mapping)
+            return True, "Vehicle created successfully", vehicle
+        
+        return False, "Failed to create vehicle", None
+    
+    except Exception as e:
+        error_msg = str(e)
+        if "unique constraint" in error_msg.lower() or "duplicate key" in error_msg.lower():
+            return False, "Vehicle already exists for this driver", None
+        return False, f"Database error: {error_msg}", None
+    
+def update_vehicle(driver_id: int, vehicle_data: dict):
+    """
+    Update vehicle information for a driver
+    
+    Args:
+        driver_id (int): The ID of the driver
+        vehicle_data (dict): Dictionary containing vehicle_no and type to update
+        
+    Returns:
+        tuple: (ok: bool, msg: str, vehicle: dict or None)
+    """
+    sql = text("""
+        UPDATE public.vehicle
+        SET vehicle_no = :vehicle_no,
+            type = :type
+        WHERE driver_id = :driver_id
+        RETURNING vehicle_id, vehicle_no, type, driver_id
+    """)
+    
+    try:
+        with engine.begin() as conn:
+            row = conn.execute(sql, {
+                "vehicle_no": vehicle_data.get("vehicle_no"),
+                "type": vehicle_data.get("type"),
+                "driver_id": driver_id
+            }).fetchone()
+        
+        if row:
+            vehicle = dict(row._mapping)
+            return True, "Vehicle updated successfully", vehicle
+        
+        return False, "No vehicle found for this driver", None
+    
+    except Exception as e:
+        return False, f"Database error: {str(e)}", None
+    
+def update_driver_discount(driver_id: int, discount: float):
+    """
+    Update discount percentage for a driver
+    
+    Args:
+        driver_id (int): The ID of the driver
+        discount (float): The discount percentage (0-100)
+        
+    Returns:
+        tuple: (ok: bool, msg: str)
+    """
+    sql = text("""
+        UPDATE public.driver
+        SET discount = :discount
+        WHERE driver_id = :driver_id
+        RETURNING driver_id
+    """)
+    
+    try:
+        with engine.begin() as conn:
+            row = conn.execute(sql, {
+                "discount": discount,
+                "driver_id": driver_id
+            }).fetchone()
+        
+        if row:
+            return True, "Discount updated successfully"
+        
+        return False, "Driver not found"
+    
+    except Exception as e:
+        return False, f"Database error: {str(e)}"
+    
+def start_ride_transaction(ride_id, driver_id):
+    """
+    Call the SQL transaction to start a ride.
+    
+    Args:
+        ride_id: ID of the ride to start
+        driver_id: ID of the driver starting the ride
+        
+    Returns:
+        tuple: (success: bool, message: str)
+    """
+    from models import db
+    
+    try:
+        # Call the stored procedure
+        result = db.session.execute(
+            """
+            SELECT success, message 
+            FROM start_ride_transaction(:ride_id, :driver_id)
+            """,
+            {"ride_id": ride_id, "driver_id": driver_id}
+        )
+        
+        row = result.fetchone()
+        
+        if row:
+            success = row[0]
+            message = row[1]
+            
+            # Commit if successful
+            if success:
+                db.session.commit()
+            else:
+                db.session.rollback()
+                
+            return success, message
+        else:
+            db.session.rollback()
+            return False, "No response from database"
+            
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in start_ride_transaction: {e}")
+        return False, f"Database error: {str(e)}"
+    
+
+def get_available_drivers():
+    """
+    Get all available drivers with their location and stats
+    Returns DataFrame-compatible list of dicts
+    """
+    sql = text("""
+        SELECT 
+            driver_id,
+            name,
+            email,
+            rating_avg,
+            "Latitude",
+            "Longitude",
+            acceptance_probablity,
+            is_active
+        FROM driver
+        WHERE is_active = TRUE
+        AND "Latitude" IS NOT NULL
+        AND "Longitude" IS NOT NULL
+    """)
+
+    with engine.begin() as conn:
+        rows = conn.execute(sql).fetchall()
+
+    return [dict(r._mapping) for r in rows]

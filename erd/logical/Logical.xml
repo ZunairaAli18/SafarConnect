@@ -1,0 +1,7 @@
+<?xml version = '1.0' encoding = 'UTF-8'?>
+<LogicalDesign class="oracle.dbtools.crest.model.design.logical.LogicalDesign" name="Logical" id="4014AAFF-BAEC-7BF8-760A-B3964AF01A45" mainViewID="FFF19766-EB87-5924-AA54-557F92D09846">
+<createdBy>quratulain.adnan</createdBy>
+<createdTime>2025-10-08 16:04:47 UTC</createdTime>
+<ownerDesignName>erd</ownerDesignName>
+<shouldBeOpen>false</shouldBeOpen>
+</LogicalDesign>
