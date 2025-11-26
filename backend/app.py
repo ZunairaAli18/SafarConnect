@@ -19,6 +19,7 @@ from flask_cors import CORS
 from WeatherService import WeatherService
 import pandas as pd
 import numpy as np 
+import eventlet
 
 load_dotenv()
 
@@ -1373,6 +1374,7 @@ if __name__ == '__main__':
     # create it first
     with app.app_context():     # now app is a real object
         db.create_all()         # create missing tables
+    # eventlet.monkey_patch()
     socketio.run(app, host="0.0.0.0", port=5000, debug=True, use_reloader=False)
 
 
