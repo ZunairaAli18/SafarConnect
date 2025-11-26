@@ -131,36 +131,40 @@ export function RideConfirmationPage({ onBack, onRideAccepted, userToken, rideDe
       fetchRecommendedDrivers();
     }
   }, []);
-
+  
   const fetchRecommendedDrivers = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/recommend_drivers`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${userToken}`,
-        },
-        body: JSON.stringify({
-          ride_id: rideDetails.ride_id,
-          pickup_lat: rideDetails.pickupCoords.lat,
-          pickup_lon: rideDetails.pickupCoords.lon,
-        }),
-      });
+  console.log(rideDetails);
+  console.log("Pickup coords:", rideDetails.pickupCoords);
 
-      const data = await response.json();
+  setLoading(true);
+  try {
+    const response = await fetch(`${API_BASE_URL}/recommend_drivers`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${userToken}`,
+      },
+      body: JSON.stringify({
+        lat: rideDetails.pickupCoords.lat,
+        lon: rideDetails.pickupCoords.lon,
+        top_n: 5, // optional, can adjust
+      }),
+    });
 
-      if (response.ok) {
-        setDrivers(data.drivers || []);
-      } else {
-        console.error('Failed to fetch drivers:', data.msg);
-      }
-    } catch (error) {
-      console.error('Error fetching drivers:', error);
-    } finally {
-      setLoading(false);
+    const data = await response.json();
+    if (data.ok) {
+      console.log('Recommended drivers:', data.recommendations);
+      setDrivers(data.recommendations);
+    } else {
+      console.error('Failed to fetch drivers:', data.error || data.msg);
     }
-  };
+  } catch (err) {
+    console.error('Error fetching recommended drivers:', err);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const handleSendRequest = async () => {
     if (!selectedDriver) return;
