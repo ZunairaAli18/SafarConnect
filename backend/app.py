@@ -651,6 +651,7 @@ def create_app():
         current_longitude=None,
         distance_km=distance_km,
         duration_min=duration_min,
+        status="pending",
         last_route_update=db.func.now()
      )
 
