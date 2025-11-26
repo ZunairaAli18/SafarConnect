@@ -379,9 +379,8 @@ def create_app():
         socketio.emit('driver_accepted', {
             'ride_id': ride_id,
             'driver_id': driver_id,
-            'driver_name': driver.name if driver else 'Driver',
-            'driver_phone': driver.phone if driver else '',
-            'driver_rating': driver.rating if driver else 0
+            'driver_name': driver.name if driver else 'Driver'
+        
         }, room=f'ride_{ride_id}')
         print(f'Driver {driver_id} accepted ride {ride_id}')
     
@@ -402,6 +401,7 @@ def create_app():
         return jsonify(msg="ride_id is required", ok=False), 400
 
      ok, msg = reject_ride_proc(driver_id, ride_id)
+     print(msg);
      if ok:
         socketio.emit('driver_rejected', {
             'ride_id': ride_id,

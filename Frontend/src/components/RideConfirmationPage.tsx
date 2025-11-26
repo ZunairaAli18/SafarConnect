@@ -168,7 +168,7 @@ export function RideConfirmationPage({ onBack, onRideAccepted, userToken, rideDe
     setRequesting(true);
     setWeatherAlert(null);
     setWeatherDetails(null);
-
+    console.log(selectedDriver);
     try {
       const response = await fetch(`${API_BASE_URL}/request_driver`, {
         method: 'POST',
