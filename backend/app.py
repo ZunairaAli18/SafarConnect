@@ -19,6 +19,7 @@ from flask_cors import CORS
 from WeatherService import WeatherService
 import pandas as pd
 import numpy as np 
+import eventlet
 
 load_dotenv()
 
@@ -379,9 +380,8 @@ def create_app():
         socketio.emit('driver_accepted', {
             'ride_id': ride_id,
             'driver_id': driver_id,
-            'driver_name': driver.name if driver else 'Driver',
-            'driver_phone': driver.phone if driver else '',
-            'driver_rating': driver.rating if driver else 0
+            'driver_name': driver.name if driver else 'Driver'
+        
         }, room=f'ride_{ride_id}')
         print(f'Driver {driver_id} accepted ride {ride_id}')
     
@@ -402,6 +402,7 @@ def create_app():
         return jsonify(msg="ride_id is required", ok=False), 400
 
      ok, msg = reject_ride_proc(driver_id, ride_id)
+     print(msg);
      if ok:
         socketio.emit('driver_rejected', {
             'ride_id': ride_id,
@@ -651,6 +652,7 @@ def create_app():
         current_longitude=None,
         distance_km=distance_km,
         duration_min=duration_min,
+        status="pending",
         last_route_update=db.func.now()
      )
 
@@ -1167,97 +1169,153 @@ def create_app():
                 'ok': False,
                 'msg': f'Training failed: {str(e)}'
             }), 500
-
+        
     @app.post("/recommend_drivers")
     def recommend_drivers_endpoint():
-        """
-        Get recommended drivers for a ride request
+     try:
+        # Read JSON body
+        data = request.get_json()
+        if not data or 'lat' not in data or 'lon' not in data:
+            return jsonify({"ok": False, "error": "lat and lon are required"}), 400
 
-        Request Body:
-        {
-            "pickup_lat": 24.8607,
-            "pickup_lon": 67.0011,
-            "top_n": 5  (optional, default 5)
-        }
+        pickup_lat = float(data['lat'])
+        pickup_lon = float(data['lon'])
+        top_n = int(data.get('top_n', 5))  # default 5
+        print(pickup_lat,pickup_lon,top_n)
+        # Call the stored procedure
+        query = text("""
+            SELECT * FROM recommend_drivers(:lat, :lon, :top_n)
+        """)
+        result = db.session.execute(query, {
+            "lat": pickup_lat,
+            "lon": pickup_lon,
+            "top_n": top_n
+        })
+        print(result)
+        # Convert to list of dictionaries
+        drivers = []
 
-        Returns:
-        {
-            "ok": true,
-            "recommended_drivers": [
-                {
-                    "driver_id": 1,
-                    "name": "Ahmed Khan",
-                    "rating_avg": 4.5,
-                    "distance_to_pickup": 2.3,
-                    "ml_acceptance_probability": 0.85,
-                    "recommendation_score": 0.78
-                },
-                ...
-            ],
-            "count": 5
-        }
-        """
-        try:
-            data = request.get_json()
+        for row in result:
+            distance_value = row.distance_km
+            try:
+                distance_km = float(distance_value) if distance_value is not None else None
+            except Exception:
+                distance_km = None  # fallback if conversion fails
 
-            # Validate input
-            if not data or 'pickup_lat' not in data or 'pickup_lon' not in data:
-                return jsonify({
-                    'ok': False,
-                    'msg': 'pickup_lat and pickup_lon are required'
-                }), 400
+            drivers.append({
+                "driver_id": row.driver_id,
+                "name": row.name,
+                "distance_km": distance_km
+            })
 
-            pickup_lat = float(data['pickup_lat'])
-            pickup_lon = float(data['pickup_lon'])
-            top_n = int(data.get('top_n', 5))
+        print(drivers)
+        return jsonify({
+            "ok": True,
+            "recommended_drivers": drivers,
+            "count": len(drivers)
+        }), 200
 
-            # Get available drivers from database
-            drivers_list = get_available_drivers()
-
-            if not drivers_list:
-                return jsonify({
-                    'ok': False,
-                    'msg': 'No available drivers found',
-                    'recommended_drivers': []
-                }), 200
-
-            # Convert to DataFrame for ML processing
-            drivers_df = pd.DataFrame(drivers_list)
-            
-            global DriverRecommender
+     except Exception as e:
+        return jsonify({
+            "ok": False,
+            "error": str(e)
+        }), 500
         
-            if not DriverRecommender.model:
-              print("⚠ Model not found — Training now...")
-              try:
-                DriverRecommender.train_model(drivers_df)  # Automatically train
-                print("✅ Model trained successfully!")
-              except Exception as train_err:
-                return jsonify({
-                    "ok": False,
-                    "msg": f"Model training failed automatically: {str(train_err)}"
-                }), 500
-            # Get recommendations from ML model
-            recommended = DriverRecommender.recommend_drivers(
-                pickup_lat,
-                pickup_lon,
-                drivers_df
-            )
+    # @app.post("/recommend_drivers")
+    # def recommend_drivers_endpoint():
+    #     """
+    #     Get recommended drivers for a ride request
 
-            # Return top N
-            top_recommendations = recommended[:top_n]
+    #     Request Body:
+    #     {
+    #         "pickup_lat": 24.8607,
+    #         "pickup_lon": 67.0011,
+    #         "top_n": 5  (optional, default 5)
+    #     }
 
-            return jsonify({
-                'ok': True,
-                'recommended_drivers': top_recommendations,
-                'count': len(top_recommendations),
-                'msg': f'Found {len(top_recommendations)} recommended drivers'
-            }), 200
+    #     Returns:
+    #     {
+    #         "ok": true,
+    #         "recommended_drivers": [
+    #             {
+    #                 "driver_id": 1,
+    #                 "name": "Ahmed Khan",
+    #                 "rating_avg": 4.5,
+    #                 "distance_to_pickup": 2.3,
+    #                 "ml_acceptance_probability": 0.85,
+    #                 "recommendation_score": 0.78
+    #             },
+    #             ...
+    #         ],
+    #         "count": 5
+    #     }
+    #     """
+    #     try:
+    #         data = request.get_json()
 
-        except Exception as e:
-            return jsonify({
-                'ok': False,
-                'msg': f'Recommendation failed: {str(e)}'
-            }), 500
+    #         # Validate input
+    #         if not data or 'pickup_lat' not in data or 'pickup_lon' not in data:
+    #             return jsonify({
+    #                 'ok': False,
+    #                 'msg': 'pickup_lat and pickup_lon are required'
+    #             }), 400
+
+    #         pickup_lat = float(data['pickup_lat'])
+    #         pickup_lon = float(data['pickup_lon'])
+    #         top_n = int(data.get('top_n', 5))
+
+    #         # Get available drivers from database
+    #         drivers_list = get_available_drivers()
+
+    #         if not drivers_list:
+    #             return jsonify({
+    #                 'ok': False,
+    #                 'msg': 'No available drivers found',
+    #                 'recommended_drivers': []
+    #             }), 200
+
+    #         # Convert to DataFrame for ML processing
+    #         drivers_df = pd.DataFrame(drivers_list)
+
+    #         # Check if model is trained, if not train it
+    #         if recommender.model is None:
+    #             print("⚠ Model not found — Training now...")
+    #             try:
+    #                 result = recommender.train_from_database(db)
+    #                 if not result['success']:
+    #                     return jsonify({
+    #                         "ok": False,
+    #                         "msg": f"Model training failed: {result['message']}"
+    #                     }), 500
+    #             except Exception as train_err:
+    #                 return jsonify({
+    #                     "ok": False,
+    #                     "msg": f"Model training failed automatically: {str(train_err)}"
+    #                 }), 500
+
+    #         # Get recommendations from ML model
+    #         recommended = DriverRecommender.recommend_drivers(
+    #             pickup_lat,
+    #             pickup_lon,
+    #             drivers_df,
+    #             db
+    #         )
+
+    #         # Return top N
+    #         top_recommendations = recommended[:top_n]
+
+    #         return jsonify({
+    #             'ok': True,
+    #             'recommended_drivers': top_recommendations,
+    #             'count': len(top_recommendations),
+    #             'msg': f'Found {len(top_recommendations)} recommended drivers'
+    #         }), 200
+
+    #     except Exception as e:
+    #         return jsonify({
+    #             'ok': False,
+    #             'msg': f'Recommendation failed: {str(e)}'
+    #         }), 500
 
     @app.post("/update_acceptance_probability/<int:driver_id>")
     def update_acceptance_endpoint(driver_id):
@@ -1323,5 +1381,7 @@ if __name__ == '__main__':
     # create it first
     with app.app_context():     # now app is a real object
         db.create_all()         # create missing tables
-    socketio.run(app, debug=True)
+    # eventlet.monkey_patch()
+    socketio.run(app, host="0.0.0.0", port=5000, debug=True, use_reloader=False)
+
 

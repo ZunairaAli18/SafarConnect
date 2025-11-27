@@ -240,24 +240,20 @@ class DriverRecommender:
             'driver_total_rides': stats['total_rides']
         }
 
-    def recommend_drivers(self, pickup_lat, pickup_lon, available_drivers_df):
+    def recommend_drivers(self, pickup_lat, pickup_lon, available_drivers_df, db=None):
         """
         Recommend drivers based on ML predictions
-
-        Args:
-            pickup_lat: Pickup latitude
-            pickup_lon: Pickup longitude
-            available_drivers_df: DataFrame with columns: driver_id, name, rating_avg,
-                                 Latitude, Longitude, acceptance_probablity
-
-        Returns:
-            List of recommended drivers with scores
         """
         if self.model is None:
-             trained = self.ensure_model_trained(db)
-             if not trained:
-              print("❌ Cannot recommend drivers — model cannot be trained yet")
-              return []
+            if db is not None:
+                trained = self.ensure_model_trained(db)
+                if not trained:
+                    print("❌ Cannot recommend drivers — model cannot be trained yet")
+                    return []
+            else:
+                print("❌ Model not trained and no database connection provided")
+                return []
+
         if available_drivers_df.empty:
             return []
 
@@ -268,7 +264,6 @@ class DriverRecommender:
                 row['Latitude'], row['Longitude']
             ), axis=1
         )
-
         # Prepare features for prediction
         features_list = []
         for _, driver in available_drivers_df.iterrows():
@@ -286,10 +281,6 @@ class DriverRecommender:
             features = {
                 'fare': estimated_fare,
                 'distance_km': estimated_distance,
-                'fare_per_km': estimated_fare / max(estimated_distance, 0.1),
-                'driver_rating': driver['rating_avg'] or 3.0,
-                'driver_acceptance_rate': stats['acceptance_rate'],
-                'driver_total_rides': stats['total_rides']
             }
             features_list.append(features)
 

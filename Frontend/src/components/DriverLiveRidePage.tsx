@@ -200,10 +200,10 @@ export function DriverLiveRidePage({ rideRequest, onCompleteRide, onCancelRide }
               <h3 className="text-white mb-4">Passenger</h3>
               <div className="flex items-center space-x-4 mb-4">
                 <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center">
-                  <span className="text-blue-400 text-xl">{rideRequest.riderName.charAt(0)}</span>
+                  <span className="text-blue-400 text-xl">{rideRequest?.riderName?.charAt(0) || 'U'}</span>
                 </div>
                 <div className="flex-1">
-                  <h4 className="text-white">{rideRequest.riderName}</h4>
+                  <h4 className="text-white">{rideRequest?.riderName || "Unknown Rider"}</h4>
                   <p className="text-slate-400 text-sm">Ride ID: {rideRequest.id}</p>
                 </div>
               </div>

@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapPin, Navigation, Clock, DollarSign, User, CheckCircle, XCircle, LogOut } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
+import { io, Socket } from 'socket.io-client';
 
 interface RideRequest {
   id: string;
@@ -30,8 +31,21 @@ export function DriverDashboard({ onLogout, onBackToProfile, onAcceptRide }: Dri
   const [rating, setRating] = useState(0);
 
   const driverId = localStorage.getItem('driverId'); // Driver ID from localStorage
+  console.log(driverId);
   const authToken = localStorage.getItem('authToken'); // JWT token from localStorage
+  const socketRef = useRef<Socket | null>(null);
 
+  useEffect(() => {
+    socketRef.current = io('http://localhost:5000'); // replace with your server URL
+
+    socketRef.current.on('connect', () => {
+      console.log('Connected to socket server', socketRef.current?.id);
+    });
+
+    return () => {
+      socketRef.current?.disconnect();
+    };
+  }, []);
   useEffect(() => {
     // Fetch driver stats
     fetch(`http://127.0.0.1:5000/driver/${driverId}/stats`, {
@@ -72,14 +86,74 @@ export function DriverDashboard({ onLogout, onBackToProfile, onAcceptRide }: Dri
       .catch(console.error);
   }, []);
 
-  const handleAccept = (request: RideRequest) => {
-    setRideRequests(rideRequests.filter(r => r.id !== request.id));
-    onAcceptRide(request);
-  };
+  const handleAccept = async (request: RideRequest) => {
 
-  const handleReject = (requestId: string) => {
-    setRideRequests(rideRequests.filter(r => r.id !== requestId));
-  };
+  try {
+    const res = await fetch(
+      `http://localhost:5000/driver/${driverId}/accept_ride`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ ride_id: request.id }),
+      }
+    );
+
+    const data = await res.json();
+
+    if (data.ok) {
+      socketRef.current?.emit('driver_accept_ride_socket', {
+        ride_id: request.id,
+        driver_id: driverId,
+        driver_name: 'Driver Name', // optional, you can fetch from state
+      });
+      // Remove from UI list
+      setRideRequests(prev => prev.filter(r => r.id !== request.id));
+      onAcceptRide(request);   // your existing callback
+    } else {
+      alert(data.msg);
+    }
+  } catch (err) {
+    console.error(err);
+    alert("Error accepting ride");
+  }
+};
+
+
+  const handleReject = async (rideId: string) => {
+
+  try {
+    const res = await fetch(
+      `http://localhost:5000/driver/${driverId}/reject`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ ride_id: rideId }),
+      }
+    );
+
+    const data = await res.json();
+
+    if (data.ok) {
+      socketRef.current?.emit('driver_reject_ride_socket', {
+        ride_id: rideId,
+        driver_id: driverId,
+      });
+      setRideRequests(prev => prev.filter(r => r.id !== rideId));
+    } else {
+      alert(data.msg);
+    }
+  } catch (err) {
+    console.error(err);
+    alert("Error rejecting ride");
+  }
+};
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-700 via-slate-600 to-slate-700 p-4 overflow-y-auto">
