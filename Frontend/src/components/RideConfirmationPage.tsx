@@ -133,11 +133,24 @@ export function RideConfirmationPage({ onBack, onRideAccepted, userToken, rideDe
   }, []);
   
   const fetchRecommendedDrivers = async () => {
-  console.log(rideDetails);
-  console.log("Pickup coords:", rideDetails.pickupCoords);
+  if (!rideDetails.pickupCoords?.lat || !rideDetails.pickupCoords?.lon) {
+    console.error("Pickup coordinates missing:", rideDetails.pickupCoords);
+    setLoading(false);
+    return;
+  }
 
   setLoading(true);
   try {
+    // Ensure lat/lon are numbers
+    const lat = Number(rideDetails.pickupCoords.lat);
+    const lon = Number(rideDetails.pickupCoords.lon);
+
+    if (isNaN(lat) || isNaN(lon)) {
+      console.error("Invalid pickup coordinates:", rideDetails.pickupCoords);
+      setLoading(false);
+      return;
+    }
+
     const response = await fetch(`${API_BASE_URL}/recommend_drivers`, {
       method: 'POST',
       headers: {
@@ -145,9 +158,9 @@ export function RideConfirmationPage({ onBack, onRideAccepted, userToken, rideDe
         'Authorization': `Bearer ${userToken}`,
       },
       body: JSON.stringify({
-        lat: rideDetails.pickupCoords.lat,
-        lon: rideDetails.pickupCoords.lon,
-        top_n: 5, // optional, can adjust
+        lat,
+        lon,
+        top_n: 5, // optional
       }),
     });
 
@@ -157,13 +170,16 @@ export function RideConfirmationPage({ onBack, onRideAccepted, userToken, rideDe
       setDrivers(data.recommended_drivers);
     } else {
       console.error('Failed to fetch drivers:', data.error || data.msg);
+      setDrivers([]);
     }
   } catch (err) {
     console.error('Error fetching recommended drivers:', err);
+    setDrivers([]);
   } finally {
     setLoading(false);
   }
 };
+
 
 
   const handleSendRequest = async () => {

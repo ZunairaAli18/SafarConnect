@@ -1191,7 +1191,7 @@ def create_app():
             "lon": pickup_lon,
             "top_n": top_n
         })
-
+        print(result)
         # Convert to list of dictionaries
         drivers = [
             {

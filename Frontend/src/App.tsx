@@ -347,6 +347,7 @@ export default function App() {
             onLogout={logout}
             onBackToProfile={() => navigate('/driver-profile')}
             onAcceptRide={handleAcceptRide}
+            
           />
         );
       
