@@ -133,11 +133,24 @@ export function RideConfirmationPage({ onBack, onRideAccepted, userToken, rideDe
   }, []);
   
   const fetchRecommendedDrivers = async () => {
-  console.log(rideDetails);
-  console.log("Pickup coords:", rideDetails.pickupCoords);
+  if (!rideDetails.pickupCoords?.lat || !rideDetails.pickupCoords?.lon) {
+    console.error("Pickup coordinates missing:", rideDetails.pickupCoords);
+    setLoading(false);
+    return;
+  }
 
   setLoading(true);
   try {
+    // Ensure lat/lon are numbers
+    const lat = Number(rideDetails.pickupCoords.lat) || 24.8607;
+    const lon = Number(rideDetails.pickupCoords.lon) || 67.0011;
+
+    if (isNaN(lat) || isNaN(lon)) {
+      console.error("Invalid pickup coordinates:", rideDetails.pickupCoords);
+      setLoading(false);
+      return;
+    }
+
     const response = await fetch(`${API_BASE_URL}/recommend_drivers`, {
       method: 'POST',
       headers: {
@@ -145,25 +158,28 @@ export function RideConfirmationPage({ onBack, onRideAccepted, userToken, rideDe
         'Authorization': `Bearer ${userToken}`,
       },
       body: JSON.stringify({
-        lat: rideDetails.pickupCoords.lat,
-        lon: rideDetails.pickupCoords.lon,
-        top_n: 5, // optional, can adjust
+        lat: 24.8607,
+        lon: 67.0011,
+        top_n: 5, // optional
       }),
     });
 
     const data = await response.json();
     if (data.ok) {
-      console.log('Recommended drivers:', data.recommendations);
-      setDrivers(data.recommendations);
+      console.log('Recommended drivers:', data);
+      setDrivers(data.recommended_drivers);
     } else {
       console.error('Failed to fetch drivers:', data.error || data.msg);
+      setDrivers([]);
     }
   } catch (err) {
     console.error('Error fetching recommended drivers:', err);
+    setDrivers([]);
   } finally {
     setLoading(false);
   }
 };
+
 
 
   const handleSendRequest = async () => {
@@ -411,7 +427,8 @@ export function RideConfirmationPage({ onBack, onRideAccepted, userToken, rideDe
                       <h4 className="text-white font-semibold text-lg">{selectedDriver.name}</h4>
                       <div className="flex items-center space-x-2 mt-1">
                         <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                        <span className="text-white text-sm">{selectedDriver.rating.toFixed(1)}</span>
+                        <span className="text-white text-sm">{selectedDriver?.rating?.toFixed(1)}</span>
+                        
                       </div>
                     </div>
                     {requestStatus === 'accepted' && (
@@ -465,7 +482,7 @@ export function RideConfirmationPage({ onBack, onRideAccepted, userToken, rideDe
           <div className="lg:col-span-2">
             <Card className="bg-slate-800/50 backdrop-blur border-slate-600 p-6">
               <h2 className="text-xl font-semibold text-white mb-4">
-                Available Drivers {drivers.length > 0 && `(${drivers.length})`}
+                Available Drivers 
               </h2>
               
               {loading ? (
@@ -473,7 +490,7 @@ export function RideConfirmationPage({ onBack, onRideAccepted, userToken, rideDe
                   <Loader2 className="w-8 h-8 animate-spin text-blue-400" />
                   <span className="ml-3 text-slate-300">Loading drivers...</span>
                 </div>
-              ) : drivers.length === 0 ? (
+              ) : drivers?.length === 0 ? (
                 <div className="py-12 text-center">
                   <p className="text-slate-300 text-lg">No drivers available nearby</p>
                   <p className="text-slate-400 text-sm mt-2">Please try again later</p>
@@ -505,13 +522,13 @@ export function RideConfirmationPage({ onBack, onRideAccepted, userToken, rideDe
                                 {driver.name.charAt(0).toUpperCase()}
                               </span>
                             </div>
-                            <div>
+                            {/* <div>
                               <h3 className="text-white font-semibold">{driver.name}</h3>
                               <div className="flex items-center space-x-1 mt-1">
                                 <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
                                 <span className="text-white text-xs">{driver.rating.toFixed(1)}</span>
                               </div>
-                            </div>
+                            </div> */}
                           </div>
                           {selectedDriver?.driver_id === driver.driver_id && (
                             <CheckCircle className="w-5 h-5 text-blue-400" />

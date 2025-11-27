@@ -19,6 +19,7 @@ from flask_cors import CORS
 from WeatherService import WeatherService
 import pandas as pd
 import numpy as np 
+import eventlet
 
 load_dotenv()
 
@@ -1190,16 +1191,23 @@ def create_app():
             "lon": pickup_lon,
             "top_n": top_n
         })
-
+        print(result)
         # Convert to list of dictionaries
-        drivers = [
-            {
+        drivers = []
+
+        for row in result:
+            distance_value = row.distance_km
+            try:
+                distance_km = float(distance_value) if distance_value is not None else None
+            except Exception:
+                distance_km = None  # fallback if conversion fails
+
+            drivers.append({
                 "driver_id": row.driver_id,
                 "name": row.name,
-                "distance_km": float(row.distance_km)
-            }
-            for row in result
-        ]
+                "distance_km": distance_km
+            })
+
         print(drivers)
         return jsonify({
             "ok": True,
@@ -1373,6 +1381,7 @@ if __name__ == '__main__':
     # create it first
     with app.app_context():     # now app is a real object
         db.create_all()         # create missing tables
+    # eventlet.monkey_patch()
     socketio.run(app, host="0.0.0.0", port=5000, debug=True, use_reloader=False)
 
 
