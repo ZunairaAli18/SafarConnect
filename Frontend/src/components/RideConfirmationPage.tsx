@@ -158,8 +158,8 @@ export function RideConfirmationPage({ onBack, onRideAccepted, userToken, rideDe
         'Authorization': `Bearer ${userToken}`,
       },
       body: JSON.stringify({
-        lat,
-        lon,
+        lat: 24.8607,
+        lon: 67.0011,
         top_n: 5, // optional
       }),
     });

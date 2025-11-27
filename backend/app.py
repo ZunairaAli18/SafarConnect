@@ -1193,14 +1193,21 @@ def create_app():
         })
         print(result)
         # Convert to list of dictionaries
-        drivers = [
-            {
+        drivers = []
+
+        for row in result:
+            distance_value = row.distance_km
+            try:
+                distance_km = float(distance_value) if distance_value is not None else None
+            except Exception:
+                distance_km = None  # fallback if conversion fails
+
+            drivers.append({
                 "driver_id": row.driver_id,
                 "name": row.name,
-                "distance_km": float(row.distance_km)
-            }
-            for row in result
-        ]
+                "distance_km": distance_km
+            })
+
         print(drivers)
         return jsonify({
             "ok": True,
