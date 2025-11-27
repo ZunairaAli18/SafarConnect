@@ -142,8 +142,8 @@ export function RideConfirmationPage({ onBack, onRideAccepted, userToken, rideDe
   setLoading(true);
   try {
     // Ensure lat/lon are numbers
-    const lat = Number(rideDetails.pickupCoords.lat);
-    const lon = Number(rideDetails.pickupCoords.lon);
+    const lat = Number(rideDetails.pickupCoords.lat) || 24.8607;
+    const lon = Number(rideDetails.pickupCoords.lon) || 67.0011;
 
     if (isNaN(lat) || isNaN(lon)) {
       console.error("Invalid pickup coordinates:", rideDetails.pickupCoords);
