@@ -27,7 +27,7 @@ load_dotenv()
 route_service = RouteService(api_key=os.getenv("ORS_API_KEY"))
 fare_calc = FareCalculator()
 driver_locations = {}   # store driver_id → (lat, lon)
-weather_service = WeatherService(api_key=os.getenv("OPENWEATHER_API_KEY"))
+weather_service = WeatherService(api_key="bb513ddd9bd24387ac6182658252911")
 engine = create_engine("postgresql://postgres.iiegkhqdrgiywqvzodvr:zunairamuntaharabail@aws-1-us-east-1.pooler.supabase.com:6543/postgres", pool_pre_ping=True, pool_size=5)
 
 SECRET_KEY='cb2a1f2a23921e96d3570d83082763beffb231cbb9ed0084238972d134c26f01'
@@ -359,6 +359,7 @@ def create_app():
          ride.pickup_latitude, 
          ride.pickup_longitude
      )
+     print(weather_details)
      save_weather_data(ride_id, weather_details, is_safe)
      if not is_safe:
          return jsonify({
@@ -530,7 +531,7 @@ def create_app():
  
     
     @app.post("/estimate_fare")
-    @token_required(user_type="users")
+    @token_required(user_type="user")
     def estimate_fare():
       data = request.get_json()
 
@@ -548,7 +549,7 @@ def create_app():
         (pickup_lon, pickup_lat),
         (drop_lon, drop_lat)
       )
-
+      print('Weather details;',weather_details)
     #  Compute estimated fare
       estimated_fare = fare_calc.compute(distance_km, duration_min)
       print(estimate_fare)
