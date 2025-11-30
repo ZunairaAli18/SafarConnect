@@ -38,7 +38,7 @@ export const useAuth = () => {
 
 // API utility with JWT
 export const apiClient = {
-  baseUrl:  'http://localhost:5000',
+  baseUrl:  'https://localhost:5000',
   
   async request(endpoint: string, options: RequestInit = {}, token?: string | null) {
     const headers: Record<string, string> = {

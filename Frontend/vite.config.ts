@@ -2,6 +2,7 @@
   import { defineConfig } from 'vite';
   import react from '@vitejs/plugin-react-swc';
   import path from 'path';
+  import fs from 'fs';
 
   export default defineConfig({
     plugins: [react()],
@@ -54,7 +55,15 @@
       outDir: 'build',
     },
     server: {
-      port: 3000,
-      open: true,
+    port: 3000,
+    open: true,
+    https: {
+      key: fs.readFileSync(
+        path.resolve(__dirname, '../backend/localhost-key.pem'),
+      ),
+      cert: fs.readFileSync(
+        path.resolve(__dirname, '../backend/localhost.pem'),
+      ),
     },
-  });
+  },
+});

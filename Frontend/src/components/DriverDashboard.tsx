@@ -36,7 +36,7 @@ export function DriverDashboard({ onLogout, onBackToProfile, onAcceptRide }: Dri
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    socketRef.current = io('http://localhost:5000'); // replace with your server URL
+    socketRef.current = io('https://localhost:5000'); // replace with your server URL
 
     socketRef.current.on('connect', () => {
       console.log('Connected to socket server', socketRef.current?.id);
@@ -90,7 +90,7 @@ export function DriverDashboard({ onLogout, onBackToProfile, onAcceptRide }: Dri
 
   try {
     const res = await fetch(
-      `http://localhost:5000/driver/${driverId}/accept_ride`,
+      `https://localhost:5000/driver/${driverId}/accept_ride`,
       {
         method: "POST",
         headers: {
@@ -126,7 +126,7 @@ export function DriverDashboard({ onLogout, onBackToProfile, onAcceptRide }: Dri
 
   try {
     const res = await fetch(
-      `http://localhost:5000/driver/${driverId}/reject`,
+      `https://localhost:5000/driver/${driverId}/reject`,
       {
         method: "POST",
         headers: {

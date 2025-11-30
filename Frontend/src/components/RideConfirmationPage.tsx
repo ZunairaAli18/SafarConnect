@@ -70,7 +70,7 @@ export function RideConfirmationPage({ onBack, onRideAccepted, userToken, rideDe
   const [weatherDetails, setWeatherDetails] = useState<WeatherDetails | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
 
-  const API_BASE_URL = 'http://localhost:5000';
+  const API_BASE_URL = 'https://localhost:5000';
 
   // Initialize Socket.IO
   useEffect(() => {

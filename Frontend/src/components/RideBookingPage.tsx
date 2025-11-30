@@ -48,7 +48,7 @@ export function RideBookingPage({ onBack, onProceedToConfirmation, userToken, us
   const mapInstanceRef = useRef<any>(null);
   const routeLayerRef = useRef<any>(null);
 
-  const API_BASE_URL = 'http://localhost:5000';
+  const API_BASE_URL = 'https://localhost:5000';
 
   // Load Leaflet CSS and JS
   useEffect(() => {
