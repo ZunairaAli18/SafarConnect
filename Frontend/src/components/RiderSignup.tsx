@@ -38,7 +38,7 @@ export function RiderSignup({ onBack, onSuccess }: RiderSignupProps) {
 
     try {
       // Call backend signup API
-      const response = await fetch('http://localhost:5000/signup', {
+      const response = await fetch('https://localhost:5000/signup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
