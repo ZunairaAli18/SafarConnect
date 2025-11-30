@@ -130,7 +130,7 @@ def create_app():
     app.config['JWT_SECRET_KEY'] = 'cb2a1f2a23921e96d3570d83082763beffb231cbb9ed0084238972d134c26f01'
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DATABASE_URL']
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    CORS(app, origins=["http://127.0.0.1:3000", "http://localhost:3000"])
+    CORS(app, origins=["http://127.0.0.1:3000", "http://localhost:3000","https://localhost:3000"])
     db.init_app(app)
     socketio = SocketIO(app, cors_allowed_origins='*')
     # Initialize ML Recommender
@@ -1379,10 +1379,19 @@ def create_app():
 # ---------- run only when file is executed directly ----------
 if __name__ == '__main__':
     app, socketio = create_app()
-    # create it first
-    with app.app_context():     # now app is a real object
-        db.create_all()         # create missing tables
-    # eventlet.monkey_patch()
-    socketio.run(app, host="0.0.0.0", port=5000, debug=True, use_reloader=False)
 
+    # create tables
+    with app.app_context():
+        db.create_all()
+
+    # Run with HTTPS using the mkcert-generated cert + key
+    socketio.run(
+        app,
+        host="0.0.0.0",
+        port=5000,
+        debug=True,
+        use_reloader=False,
+        certfile="localhost.pem",
+        keyfile="localhost-key.pem"
+    )
 
