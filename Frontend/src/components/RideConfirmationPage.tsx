@@ -142,14 +142,16 @@ export function RideConfirmationPage({ onBack, onRideAccepted, userToken, rideDe
   setLoading(true);
   try {
     // Ensure lat/lon are numbers
-    const lat = Number(rideDetails.pickupCoords.lat) || 24.8607;
-    const lon = Number(rideDetails.pickupCoords.lon) || 67.0011;
+    const lat = Number(rideDetails.pickupCoords.lat);
+    const lon = Number(rideDetails.pickupCoords.lon);
 
     if (isNaN(lat) || isNaN(lon)) {
       console.error("Invalid pickup coordinates:", rideDetails.pickupCoords);
       setLoading(false);
       return;
     }
+
+    console.log('Fetching recommended drivers for:', { lat, lon });
 
     const response = await fetch(`${API_BASE_URL}/recommend_drivers`, {
       method: 'POST',
@@ -158,23 +160,49 @@ export function RideConfirmationPage({ onBack, onRideAccepted, userToken, rideDe
         'Authorization': `Bearer ${userToken}`,
       },
       body: JSON.stringify({
-        lat: 24.8607,
-        lon: 67.0011,
-        top_n: 5, // optional
+        pickup_lat: lat,  // Changed from 'lat' to 'pickup_lat'
+        pickup_lon: lon,  // Changed from 'lon' to 'pickup_lon'
+        top_n: 5,         // Optional: number of drivers to return
       }),
     });
 
     const data = await response.json();
+    
     if (data.ok) {
-      console.log('Recommended drivers:', data);
+      console.log('✓ Recommended drivers received:', data);
+      console.log(`  - Count: ${data.count}`);
+      console.log(`  - ML Enabled: ${data.ml_enabled}`);
+      
       setDrivers(data.recommended_drivers);
+      
+      // Optional: Show a message if ML is not enabled (fallback mode)
+      if (!data.ml_enabled) {
+        console.warn('⚠ Using distance-based recommendation (ML unavailable)');
+        // You could show a toast/notification to the user here
+      }
+      
+      // Optional: Log driver details
+      data.recommended_drivers.forEach((driver: any, idx: number) => {
+        console.log(`  ${idx + 1}. ${driver.name} (ID: ${driver.driver_id})`);
+        console.log(`     - Distance: ${driver.distance_to_pickup} km`);
+        console.log(`     - Rating: ${driver.rating_avg}/5.0`);
+        if (driver.recommendation_score) {
+          console.log(`     - ML Score: ${driver.recommendation_score}`);
+        }
+      });
     } else {
-      console.error('Failed to fetch drivers:', data.error || data.msg);
+      console.error('❌ Failed to fetch drivers:', data.msg || data.error);
       setDrivers([]);
+      
+      // Optional: Show error message to user
+      // toast.error(data.msg || 'Failed to find available drivers');
     }
   } catch (err) {
-    console.error('Error fetching recommended drivers:', err);
+    console.error('❌ Error fetching recommended drivers:', err);
     setDrivers([]);
+    
+    // Optional: Show error message to user
+    // toast.error('Network error. Please check your connection.');
   } finally {
     setLoading(false);
   }

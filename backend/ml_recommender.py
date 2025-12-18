@@ -240,6 +240,8 @@ class DriverRecommender:
             'driver_total_rides': stats['total_rides']
         }
 
+    # Replace the recommend_drivers method in your ml_recommender.py
+
     def recommend_drivers(self, pickup_lat, pickup_lon, available_drivers_df, db=None):
         """
         Recommend drivers based on ML predictions
@@ -255,15 +257,19 @@ class DriverRecommender:
                 return []
 
         if available_drivers_df.empty:
+            print("⚠ No drivers in DataFrame")
             return []
 
-        # Calculate distance to each driver
+        # ✅ FIX: Use correct column names (case-sensitive)
         available_drivers_df['distance_to_pickup'] = available_drivers_df.apply(
             lambda row: self.haversine_distance(
                 pickup_lat, pickup_lon,
-                row['Latitude'], row['Longitude']
+                row['Latitude'], row['Longitude']  # ✅ Capital L
             ), axis=1
         )
+
+        print(f"✓ Calculated distances for {len(available_drivers_df)} drivers")
+
         # Prepare features for prediction
         features_list = []
         for _, driver in available_drivers_df.iterrows():
@@ -274,30 +280,38 @@ class DriverRecommender:
                 'avg_fare': 200
             })
 
-            # Estimate fare based on distance (simple estimation)
-            estimated_distance = driver['distance_to_pickup'] * 2  # rough estimate
-            estimated_fare = 50 + (estimated_distance * 15)  # base + per km
+            # Estimate fare based on distance
+            estimated_distance = driver['distance_to_pickup'] * 2
+            estimated_fare = 50 + (estimated_distance * 15)
 
             features = {
                 'fare': estimated_fare,
                 'distance_km': estimated_distance,
+                'fare_per_km': estimated_fare / max(estimated_distance, 0.1),
+                'driver_rating': driver['rating_avg'] or 3.0,
+                'driver_acceptance_rate': stats['acceptance_rate'],
+                'driver_total_rides': stats['total_rides']
             }
             features_list.append(features)
 
         # Create feature DataFrame
         X = pd.DataFrame(features_list)[self.feature_names]
         if X.empty:
-          print("⚠ No features generated — returning empty recommendations.")
-          return []
+            print("⚠ No features generated")
+            return []
 
         # Predict acceptance probability
         acceptance_probs = self.model.predict_proba(X)[:, 1]
 
+        print(f"✓ Predicted acceptance probabilities: {acceptance_probs[:3]}")
+
         # Calculate final score
-        # Factors: distance (30%), acceptance probability (40%), rating (30%)
-        normalized_distance = 1 - (available_drivers_df['distance_to_pickup'] /
-                                   available_drivers_df['distance_to_pickup'].max())
-        normalized_rating = available_drivers_df['rating_avg'] / 5.0
+        max_distance = available_drivers_df['distance_to_pickup'].max()
+        if max_distance == 0:
+            max_distance = 1
+
+        normalized_distance = 1 - (available_drivers_df['distance_to_pickup'] / max_distance)
+        normalized_rating = available_drivers_df['rating_avg'].fillna(3.0) / 5.0
 
         final_scores = (
                 0.3 * normalized_distance +
@@ -309,12 +323,19 @@ class DriverRecommender:
         available_drivers_df['ml_acceptance_probability'] = acceptance_probs
         available_drivers_df['recommendation_score'] = final_scores
 
+        # ✅ ADD vehicle info to results
+        available_drivers_df['vehicle_type'] = available_drivers_df.get('vehicle_type', 'Unknown')
+        available_drivers_df['vehicle_number'] = available_drivers_df.get('vehicle_number', 'N/A')
+
         # Sort by score
         recommended = available_drivers_df.sort_values('recommendation_score', ascending=False)
 
+        print(f"✓ Top 3 scores: {recommended['recommendation_score'].head(3).tolist()}")
+
         return recommended[[
             'driver_id', 'name', 'rating_avg', 'distance_to_pickup',
-            'ml_acceptance_probability', 'recommendation_score'
+            'ml_acceptance_probability', 'recommendation_score',
+            'vehicle_type', 'vehicle_number'
         ]].to_dict('records')
 
     def update_driver_acceptance_probability(self, db, driver_id):

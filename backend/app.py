@@ -1172,56 +1172,209 @@ def create_app():
             }), 500
         
     @app.post("/recommend_drivers")
+    @token_required(user_type="user")
     def recommend_drivers_endpoint():
-     try:
-        # Read JSON body
-        data = request.get_json()
-        if not data or 'lat' not in data or 'lon' not in data:
-            return jsonify({"ok": False, "error": "lat and lon are required"}), 400
+        """
+        Get ML-based recommended drivers for a ride request
 
-        pickup_lat = float(data['lat'])
-        pickup_lon = float(data['lon'])
-        top_n = int(data.get('top_n', 5))  # default 5
-        print(pickup_lat,pickup_lon,top_n)
-        # Call the stored procedure
-        query = text("""
-            SELECT * FROM recommend_drivers(:lat, :lon, :top_n)
-        """)
-        result = db.session.execute(query, {
-            "lat": pickup_lat,
-            "lon": pickup_lon,
-            "top_n": top_n
-        })
-        print(result)
-        # Convert to list of dictionaries
-        drivers = []
+        Request Body:
+        {
+            "pickup_lat": 24.8607,
+            "pickup_lon": 67.0011,
+            "top_n": 5  (optional, default 5)
+        }
 
-        for row in result:
-            distance_value = row.distance_km
-            try:
-                distance_km = float(distance_value) if distance_value is not None else None
-            except Exception:
-                distance_km = None  # fallback if conversion fails
-
-            drivers.append({
-                "driver_id": row.driver_id,
-                "name": row.name,
-                "distance_km": distance_km
-            })
-
-        print(drivers)
-        return jsonify({
-            "ok": True,
-            "recommended_drivers": drivers,
-            "count": len(drivers)
-        }), 200
-
-     except Exception as e:
-        return jsonify({
-            "ok": False,
-            "error": str(e)
-        }), 500
+        Returns:
+        {
+            "ok": true,
+            "recommended_drivers": [
+                {
+                    "driver_id": 1,
+                    "name": "Ahmed Khan",
+                    "rating_avg": 4.5,
+                    "distance_to_pickup": 2.3,
+                    "ml_acceptance_probability": 0.85,
+                    "recommendation_score": 0.78,
+                    "vehicle_type": "Sedan",
+                    "vehicle_number": "ABC-123"
+                },
+                ...
+            ],
+            "count": 5,
+            "ml_enabled": true
+        }
+        """
         
+        def _fallback_distance_recommendation(pickup_lat, pickup_lon, drivers_df, top_n):
+            """
+            Fallback to simple distance-based recommendation if ML fails
+            """
+            print("\n⚠ Using fallback distance-based recommendation")
+            
+            try:
+                # Calculate distances
+                from math import radians, sin, cos, sqrt, atan2
+                
+                def haversine(lat1, lon1, lat2, lon2):
+                    R = 6371  # Earth's radius in km
+                    lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+                    dlat = lat2 - lat1
+                    dlon = lon2 - lon1
+                    a = sin(dlat/2)**2 + cos(lat1)*cos(lat2)*sin(dlon/2)**2
+                    c = 2 * atan2(sqrt(a), sqrt(1-a))
+                    return R * c
+                
+                drivers_df['distance_to_pickup'] = drivers_df.apply(
+                    lambda row: haversine(
+                        pickup_lat, pickup_lon,
+                        row['Latitude'], row['Longitude']
+                    ), axis=1
+                )
+                
+                # Sort by distance
+                sorted_drivers = drivers_df.sort_values('distance_to_pickup').head(top_n)
+                
+                # Convert to list of dicts
+                recommendations = []
+                for _, driver in sorted_drivers.iterrows():
+                    recommendations.append({
+                        'driver_id': driver['driver_id'],
+                        'name': driver['name'],
+                        'rating_avg': driver['rating_avg'] or 3.0,
+                        'distance_to_pickup': round(driver['distance_to_pickup'], 2),
+                        'ml_acceptance_probability': None,
+                        'recommendation_score': None,
+                        'vehicle_type': driver.get('vehicle_type', 'Unknown'),
+                        'vehicle_number': driver.get('vehicle_number', 'N/A')
+                    })
+                
+                print(f"✓ Fallback returned {len(recommendations)} drivers")
+                
+                return jsonify({
+                    'ok': True,
+                    'recommended_drivers': recommendations,
+                    'count': len(recommendations),
+                    'ml_enabled': False,
+                    'msg': f'Found {len(recommendations)} drivers (distance-based, ML unavailable)'
+                }), 200
+                
+            except Exception as e:
+                print(f"❌ Fallback recommendation failed: {str(e)}")
+                return jsonify({
+                    'ok': False,
+                    'msg': f'All recommendation methods failed: {str(e)}',
+                    'recommended_drivers': []
+                }), 500
+        
+        # Main function logic starts here
+        try:
+            data = request.get_json()
+
+            # Validate input
+            if not data or 'pickup_lat' not in data or 'pickup_lon' not in data:
+                return jsonify({
+                    'ok': False,
+                    'msg': 'pickup_lat and pickup_lon are required'
+                }), 400
+
+            pickup_lat = float(data['pickup_lat'])
+            pickup_lon = float(data['pickup_lon'])
+            top_n = int(data.get('top_n', 5))
+
+            print(f"\n{'='*60}")
+            print(f"DRIVER RECOMMENDATION REQUEST")
+            print(f"{'='*60}")
+            print(f"Pickup Location: ({pickup_lat}, {pickup_lon})")
+            print(f"Requesting top {top_n} drivers")
+
+            # Get available drivers from database
+            drivers_list = get_available_drivers()
+
+            if not drivers_list:
+                return jsonify({
+                    'ok': False,
+                    'msg': 'No available drivers found',
+                    'recommended_drivers': [],
+                    'ml_enabled': False
+                }), 200
+
+            print(f"✓ Found {len(drivers_list)} available drivers")
+
+            # Convert to DataFrame for ML processing
+            drivers_df = pd.DataFrame(drivers_list)
+            
+            # Ensure model is trained
+            if recommender.model is None:
+                print("⚠ Model not found — Training now...")
+                try:
+                    result = recommender.train_from_database(db)
+                    if not result['success']:
+                        print(f"❌ Training failed: {result['message']}")
+                        # Fall back to simple distance-based recommendation
+                        return _fallback_distance_recommendation(
+                            pickup_lat, pickup_lon, drivers_df, top_n
+                        )
+                    print("✓ Model trained successfully")
+                except Exception as train_err:
+                    print(f"❌ Training error: {str(train_err)}")
+                    return _fallback_distance_recommendation(
+                        pickup_lat, pickup_lon, drivers_df, top_n
+                    )
+
+            # Get ML-based recommendations
+            try:
+                recommended = recommender.recommend_drivers(
+                    pickup_lat,
+                    pickup_lon,
+                    drivers_df,
+                    db
+                )
+
+                if not recommended:
+                    print("⚠ ML recommender returned no results, using fallback")
+                    return _fallback_distance_recommendation(
+                        pickup_lat, pickup_lon, drivers_df, top_n
+                    )
+
+                # Return top N
+                top_recommendations = recommended[:top_n]
+
+                print(f"\n{'='*60}")
+                print(f"ML RECOMMENDATIONS (Top {len(top_recommendations)})")
+                print(f"{'='*60}")
+                for i, driver in enumerate(top_recommendations, 1):
+                    print(f"{i}. {driver['name']} (ID: {driver['driver_id']})")
+                    print(f"   Score: {driver['recommendation_score']:.3f}")
+                    print(f"   Distance: {driver['distance_to_pickup']:.2f} km")
+                    print(f"   Acceptance Prob: {driver['ml_acceptance_probability']:.3f}")
+                    print(f"   Rating: {driver['rating_avg']:.1f}/5.0")
+                    if 'vehicle_type' in driver:
+                        print(f"   Vehicle: {driver['vehicle_type']} ({driver.get('vehicle_number', 'N/A')})")
+
+                return jsonify({
+                    'ok': True,
+                    'recommended_drivers': top_recommendations,
+                    'count': len(top_recommendations),
+                    'ml_enabled': True,
+                    'msg': f'Found {len(top_recommendations)} ML-recommended drivers'
+                }), 200
+
+            except Exception as ml_error:
+                print(f"❌ ML recommendation error: {str(ml_error)}")
+                import traceback
+                traceback.print_exc()
+                return _fallback_distance_recommendation(
+                    pickup_lat, pickup_lon, drivers_df, top_n
+                )
+
+        except Exception as e:
+            print(f"❌ Recommendation endpoint error: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({
+                'ok': False,
+                'msg': f'Recommendation failed: {str(e)}'
+            }), 500
     # @app.post("/recommend_drivers")
     # def recommend_drivers_endpoint():
     #     """

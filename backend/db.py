@@ -568,27 +568,22 @@ def start_ride_transaction(ride_id, driver_id):
     
 
 def get_available_drivers():
-    """
-    Get all available drivers with their location and stats
-    Returns DataFrame-compatible list of dicts
-    """
-    sql = text("""
-        SELECT 
-            driver_id,
-            name,
-            email,
-            rating_avg,
-            "Latitude",
-            "Longitude",
-            acceptance_probablity,
-            is_active
-        FROM driver
-        WHERE is_active = TRUE
-        AND "Latitude" IS NOT NULL
-        AND "Longitude" IS NOT NULL
-    """)
-
-    with engine.begin() as conn:
-        rows = conn.execute(sql).fetchall()
-
-    return [dict(r._mapping) for r in rows]
+    """Get all available drivers with their current locations"""
+    from models import Driver, Vehicle
+    
+    drivers = db.session.query(
+        Driver.driver_id,
+        Driver.name,
+        Driver.rating_avg,
+        Driver.Latitude.label('Latitude'),  # Capital L
+        Driver.Longitude.label('Longitude'),  # Capital L
+        Driver.acceptance_probablity,
+        Vehicle.type.label('vehicle_type'),
+        Vehicle.vehicle_no.label('vehicle_number')
+    ).outerjoin(Vehicle, Driver.driver_id == Vehicle.driver_id)\
+     .filter(Driver.is_active == False)\
+     .filter(Driver.Latitude.isnot(None))\
+     .filter(Driver.Longitude.isnot(None))\
+     .all()
+    
+    return [dict(row._mapping) for row in drivers]
