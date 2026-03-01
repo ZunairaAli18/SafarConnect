@@ -20,6 +20,7 @@ from WeatherService import WeatherService
 import pandas as pd
 import numpy as np 
 import eventlet
+eventlet.monkey_patch()
 
 load_dotenv()
 
@@ -1525,7 +1526,7 @@ def create_app():
                 'msg': str(e)
             }), 500
     
-    return app
+    return app,socketio
     
     
 
