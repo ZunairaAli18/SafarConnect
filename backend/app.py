@@ -1525,7 +1525,7 @@ def create_app():
                 'msg': str(e)
             }), 500
     
-    return app, socketio
+    return app
     
     
 
