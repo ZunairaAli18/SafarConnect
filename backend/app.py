@@ -1,3 +1,5 @@
+import eventlet
+eventlet.monkey_patch()
 import os
 from flask import Flask, jsonify, request
 from sqlalchemy import text,create_engine
@@ -19,8 +21,7 @@ from flask_cors import CORS
 from WeatherService import WeatherService
 import pandas as pd
 import numpy as np 
-import eventlet
-eventlet.monkey_patch()
+
 
 load_dotenv()
 
@@ -1531,12 +1532,9 @@ def create_app():
     
 
 # ---------- run only when file is executed directly ----------
+app, socketio = create_app()
+
 if __name__ == '__main__':
-    app, socketio = create_app()
-    # create it first
-    with app.app_context():     # now app is a real object
-        db.create_all()         # create missing tables
-    # eventlet.monkey_patch()
-    socketio.run(app, host="0.0.0.0", port=5000, debug=True, use_reloader=False)
+    socketio.run(app, host="0.0.0.0", port=5000)
 
 
