@@ -29,7 +29,7 @@ route_service = RouteService(api_key=os.getenv("ORS_API_KEY"))
 fare_calc = FareCalculator()
 driver_locations = {}   # store driver_id → (lat, lon)
 weather_service = WeatherService(api_key="bb513ddd9bd24387ac6182658252911")
-engine = create_engine("postgresql://postgres.iiegkhqdrgiywqvzodvr:zunairamuntaharabail@aws-1-us-east-1.pooler.supabase.com:6543/postgres", pool_pre_ping=True, pool_size=5)
+engine = create_engine("postgresql+psycopg://postgres.iiegkhqdrgiywqvzodvr:zunairamuntaharabail@aws-1-us-east-1.pooler.supabase.com:6543/postgres", pool_pre_ping=True, pool_size=5)
 
 SECRET_KEY='cb2a1f2a23921e96d3570d83082763beffb231cbb9ed0084238972d134c26f01'
 r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
