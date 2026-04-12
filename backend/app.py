@@ -1,5 +1,3 @@
-import eventlet
-eventlet.monkey_patch()
 import os
 from flask import Flask, jsonify, request
 from sqlalchemy import text, create_engine
@@ -135,7 +133,7 @@ def create_app():
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     CORS(app, origins=["http://127.0.0.1:3000", "http://localhost:3000"])
     db.init_app(app)
-    socketio = SocketIO(app, cors_allowed_origins='*')
+    socketio = SocketIO(app, cors_allowed_origins='*', async_mode='threading')
 
     # Initialize ML Recommender
     recommender = DriverRecommender()
@@ -1288,4 +1286,6 @@ def create_app():
 
 if __name__ == '__main__':
     app, socketio = create_app()
-    socketio.run(app, host="0.0.0.0", port=5000)
+    port = int(os.getenv("PORT", 5000))
+    debug = os.getenv("FLASK_ENV", "development") != "production"
+    socketio.run(app, host="0.0.0.0", port=port, debug=debug, allow_unsafe_werkzeug=True)

@@ -1,0 +1,17 @@
+{
+  "name": "safarconnect",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SafarConnect — full-stack ride-hailing platform",
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail --names \"redis,api,web\" --prefix-colors \"cyan,yellow,magenta\" \"bun run redis\" \"bun run api\" \"bun run web\"",
+    "api": "cd backend && ./venv.sh",
+    "web": "cd Frontend && bun run dev",
+    "redis": "docker start safar-redis 2>/dev/null || docker run --name safar-redis -p 6379:6379 -d redis:7-alpine",
+    "redis:stop": "docker stop safar-redis",
+    "install:backend": "cd backend && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
+  },
+  "dependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
